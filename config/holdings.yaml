@@ -1,0 +1,78 @@
+# 持仓配置
+# 最后更新：2026-03-25 23:25
+
+holdings:
+  - name: 华明装备
+    code: 002270.SZ
+    shares: 6000
+    cost_price: 33.033
+    industry: 制造业
+    buy_reason: "分接器龙头，ROE 连续 5 年 19.4%，毛利率 54% 远超行业"
+    
+    # 补仓计划（从成本价向下）
+    buy_more:
+      - price: 26.0
+        shares: 2000
+        reason: "第一档补仓（PE 分位约 50%）"
+      - price: 24.0
+        shares: 2000
+        reason: "第二档补仓"
+      - price: 22.0
+        shares: 2000
+        reason: "第三档补仓（深度价值）"
+    
+    # 减仓计划（从成本价向上）
+    sell_reduce:
+      - price: 40.0
+        shares: 2000
+        reason: "PE 分位>95% 时减仓"
+      - price: 45.0
+        shares: 2000
+        reason: "估值泡沫"
+      - price: 50.0
+        shares: 2000
+        reason: "严重高估"
+
+  - name: 电网设备 ETF
+    code: 159326.SZ
+    shares: 80000
+    cost_price: 1.996
+    industry: ETF
+    buy_reason: "电网设备行业分散投资，降低单一股票风险"
+    
+    # 补仓计划
+    buy_more:
+      - price: 1.78
+        shares: 20000
+        reason: "第一档补仓（-10%）"
+      - price: 1.68
+        shares: 20000
+        reason: "第二档补仓（-15%）"
+      - price: 1.58
+        shares: 20000
+        reason: "第三档补仓（-20%）"
+    
+    # 减仓计划
+    sell_reduce:
+      - price: 2.40
+        shares: 20000
+        reason: "涨幅>20% 减仓"
+      - price: 2.80
+        shares: 20000
+        reason: "涨幅>40% 减仓"
+      - price: 3.20
+        shares: 20000
+        reason: "涨幅>60% 减仓"
+
+# 监控设置
+monitoring:
+  enabled: true
+  check_frequency: "5min"  # 交易时间 5 分钟检查一次
+  alert_level: "orange"   # 橙色及以上推送钉钉
+  auto_report: true       # 自动生成盘后报告
+
+# 总仓位控制
+position_control:
+  total_max: 500000       # 总仓位上限 50 万
+  single_max_ratio: 0.30  # 单一持仓不超过 30%
+  industry_max_ratio: 0.40 # 单一行业不超过 40%

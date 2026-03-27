@@ -1,0 +1,134 @@
+# 双轨阈值配置
+# 投资宪法：通用底线不变，行业优秀线可调整
+
+# ==================== 通用硬底线（所有行业必须满足，不可破） ====================
+hard_bottom:
+  # ROE：连续 3 年≥10%（投资宪法：资本回报率底线）
+  roe_min: 0.10
+  roe_years: 3
+  
+  # 现金流/净利润：≥0.8（投资宪法：盈利质量底线）
+  cash_flow_ratio_min: 0.8
+  
+  # 负债率：≤70%（投资宪法：财务安全底线）
+  debt_ratio_max: 0.70
+  
+  # 经营现金流：连续 2 年为正（投资宪法：生存能力底线）
+  operating_cf_positive_years: 2
+  
+  # 流动性：近 20 日日均成交额≥5000 万（改进点 3）
+  avg_volume_min: 50000000
+
+# ==================== 行业差异化优秀阈值（过了硬底线后筛选优秀） ====================
+industry_excellent:
+  金融:
+    roe_excellent: 0.15
+    gross_margin_excellent: null  # 金融行业不适用毛利率
+    description: "金融行业 ROE 优秀线为 15%"
+  
+  制造业:
+    roe_excellent: 0.12
+    gross_margin_excellent: 0.25
+    description: "制造业 ROE 优秀线为 12%，毛利率优秀线为 25%"
+  
+  消费:
+    roe_excellent: 0.18
+    gross_margin_excellent: 0.40
+    description: "消费行业 ROE 优秀线为 18%，毛利率优秀线为 40%（品牌溢价）"
+  
+  医药:
+    roe_excellent: 0.15
+    gross_margin_excellent: 0.60
+    description: "医药行业 ROE 优秀线为 15%，毛利率优秀线为 60%（研发驱动）"
+  
+  科技:
+    roe_excellent: 0.12
+    gross_margin_excellent: 0.50
+    description: "科技行业 ROE 优秀线为 12%，毛利率优秀线为 50%（高增长高毛利）"
+  
+  周期:
+    roe_excellent: 0.10
+    gross_margin_excellent: 0.20
+    description: "周期行业 ROE 优秀线为 10%，毛利率优秀线为 20%（波动大）"
+
+# ==================== 选股前检查清单阈值（投资宪法：20 项） ====================
+checklist_20:
+  # 基本面指标
+  roe_5y_min: 0.15  # ROE 连续 5 年>15%
+  gross_margin_volatility_max: 0.05  # 毛利率波动<5%
+  debt_ratio_max: 0.50  # 负债率<50%
+  cash_flow_ratio_min: 0.8  # 现金流/净利润>0.8
+  related_party_ratio_max: 0.05  # 关联交易<5%
+  shareholder_reduction_max: 0.05  # 大股东减持<5%
+  other_receivables_ratio_max: 0.03  # 其他应收款<3%
+  revenue_concentration_min: 0.80  # 主营收入占比>80%
+  
+  # 估值指标
+  pe_percentile_max: 0.80  # PE 分位<80%
+  pb_percentile_max: 0.80  # PB 分位<80%
+  peg_max: 2.0  # PEG<2
+  
+  # 现金流质量
+  fcf_positive_years: 5  # 自由现金流连续 5 年为正
+  receivables_ratio_max: 0.30  # 应收账款/营收<30%
+  inventory_ratio_max: 0.20  # 存货/营收<20%
+  
+  # 研发与分红
+  rd_ratio_min: 0.03  # 研发费用/营收>3%
+  dividend_ratio_min: 0.20  # 分红率>20%
+
+# ==================== 安全边际动态校准（改进点 4：无风险利率适配） ====================
+safety_margin:
+  # 市场 PE 分位阈值
+  extreme_high: 0.90  # 市场极度泡沫：要求 6 折
+  high: 0.70  # 市场偏贵：要求 7 折
+  reasonable: 0.30  # 市场合理：要求 8 折
+  low: 0.10  # 市场偏便宜：要求 85 折
+  # 市场极度低估：要求 9 折
+  
+  # 无风险利率适配（10 年期国债）
+  bond_yield_threshold: 0.025  # 2.5%
+  bond_yield_adjustment: 0.05  # 低利率时代 PE 分位阈值上调 5 个百分点
+  
+  # 折扣率
+  discount_extreme_high: 0.60  # 6 折
+  discount_high: 0.70  # 7 折
+  discount_reasonable: 0.80  # 8 折
+  discount_low: 0.85  # 85 折
+  discount_extreme_low: 0.90  # 9 折
+
+# ==================== 预警阈值（投资宪法：持有中 10 项） ====================
+alert_thresholds:
+  # 黄色预警（⚠️）
+  roe_decline_yellow: 0.03  # ROE 下降>3 个百分点
+  gross_margin_decline_yellow: 0.03  # 毛利率下降>3%
+  debt_ratio_rise_yellow: 0.10  # 负债率上升>10%
+  cash_flow_ratio_yellow: 0.8  # 现金流/净利润<0.8
+  pe_percentile_yellow: 0.80  # PE 分位>80%
+  
+  # 橙色预警（🟠）
+  roe_decline_orange: 0.05  # ROE 下降>5 个百分点
+  gross_margin_decline_orange: 0.05  # 毛利率下降>5%
+  debt_ratio_rise_orange: 0.20  # 负债率上升>20%
+  cash_flow_ratio_orange: 0.5  # 现金流/净利润<0.5
+  pe_percentile_orange: 0.90  # PE 分位>90%
+  
+  # 红色预警（🔴）
+  roe_decline_red: 0.10  # ROE 下降>10 个百分点
+  debt_ratio_red: 0.70  # 负债率>70%
+  cash_flow_negative: 2  # 连续 2 季度现金流为负
+  pe_percentile_red: 0.95  # PE 分位>95%
+
+# ==================== 卖出检查清单阈值（投资宪法：10 项） ====================
+sell_checklist:
+  # 基本面恶化
+  roe_continuous_low: 0.10  # ROE 连续 2 年<10%
+  revenue_decline_years: 2  # 营收连续 2 年负增长
+  
+  # 高估
+  pe_percentile_sell: 0.95  # PE 分位>95%
+  peg_sell: 2.0  # PEG>2
+  
+  # 仓位管理
+  position_single_max: 0.30  # 单一持仓>30%
+  position_industry_max: 0.40  # 单一行业>40%
