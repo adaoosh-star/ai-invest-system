@@ -3,14 +3,14 @@
 
 # 核心依赖
 tushare==1.2.89  # A 股财务/行情数据
-akshare==1.12.0  # 备用数据源
+akshare  # 备用数据源（最新版）
 pandas==2.1.0  # 数据处理
 numpy==1.24.0  # 数值计算
 pyyaml==6.0.1  # 配置文件
 
 # OCR（第三阶段 P2）
-paddlepaddle==2.5.0  # PaddleOCR
-paddleocr==2.7.0
+paddlepaddle  # PaddleOCR（最新版）
+paddleocr
 
 # 调度（第四阶段 P3）
 celery==5.3.0
@@ -18,6 +18,9 @@ redis==4.6.0
 
 # 通知（第二阶段 P1）
 requests==2.31.0
+
+# AI 搜索（网络信息获取）
+tavily-python  # Tavily AI Search API
 
 # 测试
 pytest==7.4.0

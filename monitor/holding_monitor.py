@@ -380,15 +380,26 @@ if __name__ == '__main__':
         alert_summary = report.get('alert_summary', {})
         logger.info(f"预警汇总：红色={alert_summary.get('red', 0)}, 橙色={alert_summary.get('orange', 0)}, 机会={alert_summary.get('opportunity', 0)}")
         
-        # 只输出报告内容到 stdout（供 cron 推送）
-        print(formatted)
+        # 判断是否有预警（红色/橙色/机会）
+        has_alert = len(report['alerts']) > 0
         
-        # 保存报告到文件
+        # 优化策略：仅预警时推送，否则只保存文件
+        if has_alert:
+            # 有预警：输出完整报告（供 cron 推送）
+            print(formatted)
+            logger.info("🔔 有预警，已推送完整报告")
+        else:
+            # 无预警：仅输出简洁摘要（不推送）
+            simple_summary = format_report(report, verbose=False)
+            logger.info(f"✅ 无预警，仅保存日志：{simple_summary}")
+            # 不 print，避免 cron 推送
+        
+        # 保存报告到文件（总是保存，供按需查看）
         output_path = Path(__file__).parent.parent / 'cache' / f"holding_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(formatted)
         
-        logger.info(f"报告已保存：{output_path}")
+        logger.info(f"📁 报告已保存：{output_path}")
         logger.info("持仓监控任务执行完成")
         
     except Exception as e:

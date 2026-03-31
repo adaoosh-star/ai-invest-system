@@ -33,41 +33,42 @@ with open(HOLDINGS_PATH, 'r', encoding='utf-8') as f:
 
 def get_us_markets() -> dict:
     """
-    获取美股三大指数（新浪财经）
+    获取美股三大指数（东方财富 API - 更稳定）
     """
     result = {}
     try:
-        # 美股指数代码
+        # 东方财富美股指数代码
         symbols = {
-            'dow': 'int_dji',      # 道琼斯
-            'nasdaq': 'int_nasdaq', # 纳斯达克
-            'sp500': 'int_sp500',   # 标普 500
+            'dow': '100.DJIA',      # 道琼斯
+            'nasdaq': '100.NDX',    # 纳斯达克 100
+            'sp500': '100.SPX',     # 标普 500
+        }
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://quote.eastmoney.com/',
         }
         
         for name, symbol in symbols.items():
             try:
-                url = f"https://hq.sinajs.cn/list={symbol}"
-                resp = requests.get(url, timeout=3)
+                # 东方财富 API
+                url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={symbol}&fields=f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f53,f54,f55,f56,f57,f58,f59,f60"
+                resp = requests.get(url, timeout=5, headers=headers)
+                
                 if resp.status_code == 200:
-                    # 解析：var hq_str_int_dji="名称，开盘，昨收，当前，最高，最低，..."
-                    data = resp.text.strip()
-                    if '=' in data and '"' in data:
-                        parts = data.split('=')[1].strip('"').split(',')
-                        if len(parts) >= 4 and parts[2] and parts[3]:
-                            current = float(parts[3])
-                            prev_close = float(parts[2])
-                            change = ((current - prev_close) / prev_close * 100) if prev_close > 0 else 0
-                            result[name] = {
-                                'current': current,
-                                'change': change,
-                                'comment': '上涨' if change > 0.5 else '下跌' if change < -0.5 else '震荡'
-                            }
-                        else:
-                            result[name] = {'current': 0, 'change': 0, 'comment': '数据格式异常'}
-                    else:
-                        result[name] = {'current': 0, 'change': 0, 'comment': '解析失败'}
-                else:
-                    result[name] = {'current': 0, 'change': 0, 'comment': f'HTTP {resp.status_code}'}
+                    data = resp.json()
+                    if data.get('data'):
+                        d = data['data']
+                        current = d.get('f47', 0)  # 当前价
+                        prev_close = d.get('f46', 1)  # 昨收
+                        change = d.get('f48', 0)  # 涨跌幅
+                        change_pct = d.get('f49', 0)  # 涨跌幅百分比
+                        
+                        result[name] = {
+                            'current': current,
+                            'change': change_pct,
+                            'comment': '上涨' if change_pct > 0.5 else '下跌' if change_pct < -0.5 else '震荡'
+                        }
             except Exception as e:
                 logger.debug(f"获取{name}失败：{e}")
                 result[name] = {'current': 0, 'change': 0, 'comment': '获取失败'}
@@ -86,9 +87,13 @@ def get_china_adr() -> dict:
     """
     获取中概股表现（纳斯达克中国金龙指数）
     """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://finance.sina.com.cn/',
+    }
     try:
         url = "https://hq.sinajs.cn/list=HXC"
-        resp = requests.get(url, timeout=3)
+        resp = requests.get(url, timeout=3, headers=headers)
         if resp.status_code == 200:
             data = resp.text.strip()
             if '=' in data and '"' in data:
@@ -112,10 +117,14 @@ def get_a50_future() -> dict:
     """
     获取 A50 期货（新浪财经）
     """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://finance.sina.com.cn/',
+    }
     try:
         # 富时中国 A50 期货
         url = "https://hq.sinajs.cn/list=s_FCHI"
-        resp = requests.get(url, timeout=3)
+        resp = requests.get(url, timeout=3, headers=headers)
         if resp.status_code == 200:
             data = resp.text.strip()
             if '=' in data and '"' in data:
@@ -139,9 +148,13 @@ def get_usd_cny() -> dict:
     """
     获取人民币汇率（在岸）
     """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://finance.sina.com.cn/',
+    }
     try:
         url = "https://hq.sinajs.cn/list=s_USDCNY"
-        resp = requests.get(url, timeout=3)
+        resp = requests.get(url, timeout=3, headers=headers)
         if resp.status_code == 200:
             data = resp.text.strip()
             if '=' in data and '"' in data:
@@ -375,6 +388,14 @@ def generate_report() -> str:
     return report
 
 
+def push_to_dingtalk(content: str):
+    """
+    推送到钉钉（通过 OpenClaw 会话）
+    输出到 stdout，由 OpenClaw 捕获并推送到当前会话
+    """
+    # 直接输出完整报告，OpenClaw 会推送到钉钉
+    print(content)
+
 def main():
     """
     主函数：生成并输出盘前报告
@@ -384,8 +405,8 @@ def main():
     try:
         report = generate_report()
         
-        # 输出报告到 stdout（供 cron 推送钉钉）
-        print(report)
+        # 推送到钉钉
+        push_to_dingtalk(report)
         
         # 保存到文件
         now = datetime.now()

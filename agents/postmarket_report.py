@@ -470,6 +470,12 @@ _（每日反思，持续改进）_
     return report
 
 
+def push_to_dingtalk(content: str):
+    """
+    推送到钉钉（通过 OpenClaw 会话）
+    """
+    print(content)
+
 def main():
     """
     主函数：生成并输出盘后复盘报告
@@ -479,8 +485,8 @@ def main():
     try:
         report = generate_report()
         
-        # 输出报告到 stdout（供 cron 推送钉钉）
-        print(report)
+        # 推送到钉钉
+        push_to_dingtalk(report)
         
         # 保存到文件
         now = datetime.now()
