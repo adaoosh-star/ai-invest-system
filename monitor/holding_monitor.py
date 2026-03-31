@@ -73,7 +73,8 @@ def get_current_data(ts_code: str) -> dict:
         # 2. 获取估值分位
         try:
             pe_pb = get_pe_pb_percentile(ts_code)
-            result['pe_percentile'] = pe_pb.get('pe_percentile_5y', 0)
+            # Tushare 返回的是小数，需要乘以 100
+            result['pe_percentile'] = pe_pb.get('pe_percentile_5y', 0) * 100
             result['pb_percentile'] = pe_pb.get('pb_percentile_5y', 0)
         except:
             pass

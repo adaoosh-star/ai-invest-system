@@ -248,7 +248,8 @@ def get_holding_analysis() -> list:
             # 获取估值分位
             try:
                 pe_pb = get_pe_pb_percentile(code)
-                pe_percentile = pe_pb.get('pe_percentile_5y', 50)
+                # Tushare 返回的是小数 (0.8952)，需要乘以 100 变成百分比
+                pe_percentile = pe_pb.get('pe_percentile_5y', 0.5) * 100
             except:
                 pe_percentile = 50
             
