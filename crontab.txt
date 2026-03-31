@@ -1,0 +1,39 @@
+# AI 价值投资系统 - 定时任务配置
+# 最后恢复：2026-03-30 20:55
+# 安装命令：crontab crontab.txt
+
+# ==================== 交易日报告（周一到周五） ====================
+
+# 持仓监控 - 交易时间每 30 分钟（9:00-15:30）
+# 优化：仅预警时推送，否则保存文件
+0,30 9-15 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 monitor/holding_monitor.py >> cache/cron_monitor.log 2>&1
+
+# 盘前预判报告 - 交易日 8:30（隔夜市场、操作计划）
+30 8 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/premarket_report.py >> cache/cron_premarket.log 2>&1
+
+# 集合竞价报告 - 交易日 9:25（竞价结果、最终计划）
+25 9 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/auction_report.py >> cache/cron_auction.log 2>&1
+
+# 盘后复盘报告 - 交易日 15:30（收盘数据、技术分析、总结）
+30 15 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/postmarket_report.py >> cache/cron_postmarket.log 2>&1
+
+# ==================== 周度任务 ====================
+
+# AI 竞争情报周报 - 每周一 9:00
+0 9 * * 1 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 review/weekly_review.py >> cache/cron_weekly.log 2>&1
+
+# ==================== 心跳检查（OpenClaw） ====================
+
+# 每 30 分钟检查一次心跳
+*/30 * * * * echo "HEARTBEAT_OK" >> /home/admin/.openclaw/workspace/heartbeat.log 2>&1
+
+# ==================== 自动备份 ====================
+
+# 每日备份 - 凌晨 2:00（关键文件）
+0 2 * * * /home/admin/.openclaw/scripts/auto-backup.sh daily >> /home/admin/.openclaw/workspace/memory/backup-cron.log 2>&1
+
+# 每周备份 - 周日 3:00（完整工作空间）
+0 3 * * 0 /home/admin/.openclaw/scripts/auto-backup.sh weekly >> /home/admin/.openclaw/workspace/memory/backup-cron.log 2>&1
+
+# 每月备份 - 1 号 4:00（完整备份 + 清理）
+0 4 1 * * /home/admin/.openclaw/scripts/auto-backup.sh monthly >> /home/admin/.openclaw/workspace/memory/backup-cron.log 2>&1
