@@ -390,11 +390,65 @@ def generate_report() -> str:
 
 def push_to_dingtalk(content: str):
     """
-    推送到钉钉（通过 OpenClaw 会话）
-    输出到 stdout，由 OpenClaw 捕获并推送到当前会话
+    推送到钉钉（通过 Node.js 脚本调用钉钉连接器）
     """
-    # 直接输出完整报告，OpenClaw 会推送到钉钉
-    print(content)
+    import subprocess
+    import tempfile
+    import os
+    
+    # 创建临时 JS 脚本
+    js_code = """
+import { sendProactive } from '/home/admin/.openclaw/extensions/dingtalk-connector/src/services/messaging.ts';
+
+const config = {
+  clientId: "dinggmk7kpiddrrvi0l5",
+  clientSecret: "9RR-37dNLUKRkzzS-1RN5CHsDSJnIKEtBCd3-O9MqB7SvYUduBwse8FhEtMnr2bN",
+  gatewayToken: "7c945e183e33b18df341e2c3ad9ced59e0a7f156d7d20238"
+};
+
+const userId = "01023647151178899";
+const content = `""" + content.replace('`', '\\`') + """`;
+
+async function push() {
+  try {
+    const result = await sendProactive(config, { userId }, content, {
+      msgType: "markdown",
+      title: "AI 价值投资系统",
+      useAICard: false
+    });
+    console.log("钉钉推送结果:", JSON.stringify(result));
+  } catch (err) {
+    console.error("钉钉推送失败:", err.message);
+  }
+}
+
+push();
+"""
+    
+    try:
+        # 写入临时文件
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.mjs', delete=False) as f:
+            f.write(js_code)
+            temp_file = f.name
+        
+        # 执行 Node.js 脚本
+        result = subprocess.run(
+            ['npx', 'tsx', temp_file],
+            cwd='/home/admin/.openclaw/extensions/dingtalk-connector',
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        print(f"钉钉推送：{result.stdout}", file=sys.stderr)
+        if result.stderr:
+            print(f"推送错误：{result.stderr}", file=sys.stderr)
+        
+        # 清理临时文件
+        os.unlink(temp_file)
+        
+    except Exception as e:
+        print(f"钉钉推送异常：{e}", file=sys.stderr)
 
 def main():
     """
