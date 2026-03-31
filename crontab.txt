@@ -14,8 +14,9 @@
 # 集合竞价报告 - 交易日 9:25（竞价结果、最终计划）
 25 9 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/auction_report.py >> cache/cron_auction.log 2>&1
 
-# 盘后复盘报告 - 交易日 15:30（收盘数据、技术分析、总结）
-30 15 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/postmarket_report.py >> cache/cron_postmarket.log 2>&1
+# 盘后复盘报告 - 交易日 21:00（收盘数据、技术分析、消息面、情绪面）
+# Tushare 盘后数据已更新，数据更完整，包含更多消息面和情绪信息
+0 21 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/postmarket_report.py >> cache/cron_postmarket.log 2>&1
 
 # ==================== 周度任务 ====================
 
