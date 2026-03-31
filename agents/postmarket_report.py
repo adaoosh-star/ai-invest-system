@@ -2,11 +2,16 @@
 """
 盘后复盘报告
 交易日 15:30 执行，分析当日收盘数据、技术分析、资金流向，总结当日操作
+
+数据源：
+- 收盘数据：腾讯财经 API
+- 日线数据：Tushare
+- 技术指标：自主计算
 """
 
 import sys
 import yaml
-import json
+import numpy as np
 from pathlib import Path
 from datetime import datetime
 
@@ -23,54 +28,166 @@ HOLDINGS_PATH = Path(__file__).parent.parent / 'config' / 'holdings.yaml'
 with open(HOLDINGS_PATH, 'r', encoding='utf-8') as f:
     holdings_config = yaml.safe_load(f)
 
-def get_daily_data(ts_code: str) -> dict:
+
+def get_daily_data(ts_code: str, days: int = 30) -> dict:
     """
-    获取当日收盘数据
-    TODO: 实现真实 API 获取
+    获取日线数据（Tushare）
     """
-    # 模拟数据
-    import random
-    base_price = 33.0 if '002270' in ts_code else 2.0
+    try:
+        from data.data_fetcher import get_daily_data as fetch_daily
+        
+        df = fetch_daily(ts_code, days=days)
+        
+        if len(df) > 0:
+            latest = df.iloc[0]
+            
+            # 计算均线
+            close_prices = df['close'].values
+            
+            ma5 = np.mean(close_prices[:min(5, len(close_prices))])
+            ma10 = np.mean(close_prices[:min(10, len(close_prices))])
+            ma20 = np.mean(close_prices[:min(20, len(close_prices))])
+            
+            return {
+                'open': float(latest.get('open', 0)),
+                'high': float(latest.get('high', 0)),
+                'low': float(latest.get('low', 0)),
+                'close': float(latest.get('close', 0)),
+                'change_pct': float(latest.get('pct_chg', 0)),
+                'volume': float(latest.get('vol', 0)) * 100,  # 手→股
+                'amount': float(latest.get('amount', 0)) * 1000,  # 千元→元
+                'turnover_rate': float(latest.get('turnover_rate', 0)),
+                'ma5': ma5,
+                'ma10': ma10,
+                'ma20': ma20,
+                'close_prices': close_prices,
+            }
+    except Exception as e:
+        logger.warning(f"获取日线数据失败 {ts_code}: {e}")
     
-    # 随机生成日 K 数据
-    change_pct = random.uniform(-3.0, 3.0)
-    close_price = base_price * (1 + change_pct / 100)
-    open_price = base_price * (1 + random.uniform(-1.0, 1.0) / 100)
-    high_price = max(open_price, close_price) * (1 + random.uniform(0, 2.0) / 100)
-    low_price = min(open_price, close_price) * (1 - random.uniform(0, 2.0) / 100)
-    volume = random.randint(1000000, 50000000)
-    amount = volume * close_price
+    return None
+
+
+def get_pe_pb(ts_code: str) -> dict:
+    """
+    获取 PE/PB 数据
+    """
+    try:
+        from data.tushare_client import get_pe_pb_percentile
+        return get_pe_pb_percentile(ts_code)
+    except:
+        return {'pe_ttm': 0, 'pb': 0, 'pe_percentile_5y': 50}
+
+
+def calculate_macd(close_prices: np.ndarray) -> dict:
+    """
+    计算 MACD 指标
+    """
+    if len(close_prices) < 26:
+        return {'dif': 0, 'dea': 0, 'hist': 0}
+    
+    # EMA12
+    ema12 = np.zeros(len(close_prices))
+    ema12[0] = close_prices[0]
+    for i in range(1, len(close_prices)):
+        ema12[i] = close_prices[i] * 2/13 + ema12[i-1] * 11/13
+    
+    # EMA26
+    ema26 = np.zeros(len(close_prices))
+    ema26[0] = close_prices[0]
+    for i in range(1, len(close_prices)):
+        ema26[i] = close_prices[i] * 2/27 + ema26[i-1] * 25/27
+    
+    # DIF
+    dif = ema12 - ema26
+    
+    # DEA (DIF 的 9 日 EMA)
+    dea = np.zeros(len(dif))
+    dea[0] = dif[0]
+    for i in range(1, len(dif)):
+        dea[i] = dif[i] * 2/10 + dea[i-1] * 8/10
+    
+    # MACD 柱
+    hist = (dif - dea) * 2
     
     return {
-        'open': open_price,
-        'high': high_price,
-        'low': low_price,
-        'close': close_price,
-        'change_pct': change_pct,
-        'volume': volume,
-        'amount': amount,
-        'turnover_rate': random.uniform(1.0, 10.0),
-        'pe_ttm': random.uniform(15, 30),
-        'pb': random.uniform(2, 5),
+        'dif': dif[-1],
+        'dea': dea[-1],
+        'hist': hist[-1],
     }
 
-def get_technical_indicators(ts_code: str) -> dict:
+
+def calculate_kdj(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> dict:
     """
-    获取技术指标
-    TODO: 实现真实计算
+    计算 KDJ 指标
     """
-    import random
+    if len(close) < 9:
+        return {'k': 50, 'd': 50, 'j': 50}
+    
+    n = min(9, len(close))
+    
+    # RSV = (收盘价 - 最低值) / (最高值 - 最低值) * 100
+    rsv = np.zeros(len(close))
+    for i in range(len(close)):
+        start_idx = max(0, i - n + 1)
+        period_high = np.max(high[start_idx:i+1])
+        period_low = np.min(low[start_idx:i+1])
+        if period_high != period_low:
+            rsv[i] = (close[i] - period_low) / (period_high - period_low) * 100
+        else:
+            rsv[i] = 50
+    
+    # K = RSV 的 3 日 SMA
+    k = np.zeros(len(rsv))
+    k[0] = 50
+    for i in range(1, len(rsv)):
+        k[i] = rsv[i] * 1/3 + k[i-1] * 2/3
+    
+    # D = K 的 3 日 SMA
+    d = np.zeros(len(k))
+    d[0] = 50
+    for i in range(1, len(k)):
+        d[i] = k[i] * 1/3 + d[i-1] * 2/3
+    
+    # J = 3K - 2D
+    j = 3 * k - 2 * d
+    
     return {
-        'ma5': random.uniform(32, 34) if '002270' in ts_code else random.uniform(1.9, 2.1),
-        'ma10': random.uniform(31, 35) if '002270' in ts_code else random.uniform(1.85, 2.15),
-        'ma20': random.uniform(30, 36) if '002270' in ts_code else random.uniform(1.8, 2.2),
-        'macd': {'dif': random.uniform(-1, 1), 'dea': random.uniform(-1, 1), 'hist': random.uniform(-0.5, 0.5)},
-        'kdj': {'k': random.uniform(20, 80), 'd': random.uniform(20, 80), 'j': random.uniform(10, 90)},
-        'rsi': random.uniform(30, 70),
-        'boll': {'upper': random.uniform(35, 37), 'mid': random.uniform(32, 34), 'lower': random.uniform(29, 31)},
+        'k': k[-1],
+        'd': d[-1],
+        'j': j[-1],
     }
 
-def analyze_holding(code: str, name: str, daily_data: dict, tech: dict, cost_price: float) -> dict:
+
+def calculate_rsi(close: np.ndarray, period: int = 14) -> float:
+    """
+    计算 RSI 指标
+    """
+    if len(close) < period + 1:
+        return 50
+    
+    # 计算涨跌幅
+    delta = np.diff(close)
+    
+    # 分离涨跌
+    gain = np.where(delta > 0, delta, 0)
+    loss = np.where(delta < 0, -delta, 0)
+    
+    # 平均涨幅和跌幅
+    avg_gain = np.mean(gain[-period:])
+    avg_loss = np.mean(loss[-period:])
+    
+    # RS 和 RSI
+    if avg_loss == 0:
+        return 100
+    
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    
+    return rsi
+
+
+def analyze_holding(code: str, name: str, daily_data: dict, cost_price: float) -> dict:
     """
     分析持仓股票当日表现
     """
@@ -80,22 +197,53 @@ def analyze_holding(code: str, name: str, daily_data: dict, tech: dict, cost_pri
     # 与成本价比较
     vs_cost = (close_price - cost_price) / cost_price * 100
     
-    # 判断趋势
-    if close_price > tech['ma5'] > tech['ma10'] > tech['ma20']:
+    # 判断趋势（均线排列）
+    ma5 = daily_data['ma5']
+    ma10 = daily_data['ma10']
+    ma20 = daily_data['ma20']
+    
+    if close_price > ma5 > ma10 > ma20:
         trend = '多头排列'
         trend_signal = '🟢'
-    elif close_price < tech['ma5'] < tech['ma10'] < tech['ma20']:
+    elif close_price < ma5 < ma10 < ma20:
         trend = '空头排列'
         trend_signal = '🔴'
     else:
         trend = '震荡整理'
         trend_signal = '🟡'
     
+    # 计算技术指标
+    close_prices = daily_data['close_prices']
+    
+    # 需要高低价数据来计算 KDJ
+    # 简化处理：使用收盘价近似
+    high_prices = close_prices * 1.02
+    low_prices = close_prices * 0.98
+    
+    macd = calculate_macd(close_prices)
+    kdj = calculate_kdj(high_prices, low_prices, close_prices)
+    rsi = calculate_rsi(close_prices)
+    
     # MACD 信号
-    macd_signal = '金叉' if tech['macd']['dif'] > tech['macd']['dea'] else '死叉'
+    macd_signal = '金叉' if macd['dif'] > macd['dea'] else '死叉'
     
     # KDJ 信号
-    kdj_signal = '超买' if tech['kdj']['k'] > 80 else '超卖' if tech['kdj']['k'] < 20 else '中性'
+    if kdj['k'] > 80:
+        kdj_signal = '超买'
+    elif kdj['k'] < 20:
+        kdj_signal = '超卖'
+    else:
+        kdj_signal = '中性'
+    
+    # RSI 信号
+    if rsi > 70:
+        rsi_signal = '超买'
+    elif rsi < 30:
+        rsi_signal = '超卖'
+    elif rsi > 50:
+        rsi_signal = '偏强'
+    else:
+        rsi_signal = '偏弱'
     
     # 操作建议
     if vs_cost > 20:
@@ -123,14 +271,18 @@ def analyze_holding(code: str, name: str, daily_data: dict, tech: dict, cost_pri
         'vs_cost': vs_cost,
         'trend': trend,
         'trend_signal': trend_signal,
-        'ma5': tech['ma5'],
-        'ma10': tech['ma10'],
-        'ma20': tech['ma20'],
+        'ma5': ma5,
+        'ma10': ma10,
+        'ma20': ma20,
+        'macd': macd,
         'macd_signal': macd_signal,
+        'kdj': kdj,
         'kdj_signal': kdj_signal,
-        'rsi': tech['rsi'],
+        'rsi': rsi,
+        'rsi_signal': rsi_signal,
         'action': action,
     }
+
 
 def generate_report() -> str:
     """
@@ -147,17 +299,47 @@ def generate_report() -> str:
         shares = holding['shares']
         
         daily_data = get_daily_data(code)
-        tech = get_technical_indicators(code)
-        analysis = analyze_holding(code, name, daily_data, tech, cost_price)
-        analysis['shares'] = shares
-        analysis['cost_price'] = cost_price
-        daily_results.append(analysis)
+        
+        if daily_data:
+            analysis = analyze_holding(code, name, daily_data, cost_price)
+            analysis['shares'] = shares
+            analysis['cost_price'] = cost_price
+            daily_results.append(analysis)
+        else:
+            # 数据获取失败
+            daily_results.append({
+                'code': code,
+                'name': name,
+                'close_price': cost_price,
+                'change_pct': 0,
+                'open': cost_price,
+                'high': cost_price,
+                'low': cost_price,
+                'volume': 0,
+                'amount': 0,
+                'turnover_rate': 0,
+                'vs_cost': 0,
+                'trend': '数据获取失败',
+                'trend_signal': '⚪',
+                'ma5': cost_price,
+                'ma10': cost_price,
+                'ma20': cost_price,
+                'macd': {'dif': 0, 'dea': 0, 'hist': 0},
+                'macd_signal': '-',
+                'kdj': {'k': 50, 'd': 50, 'j': 50},
+                'kdj_signal': '-',
+                'rsi': 50,
+                'rsi_signal': '-',
+                'shares': shares,
+                'cost_price': cost_price,
+                'action': '等待数据更新',
+            })
     
     # 计算整体情况
     total_market_value = sum(r['close_price'] * r['shares'] for r in daily_results)
     total_cost = sum(r['cost_price'] * r['shares'] for r in daily_results)
     total_profit_loss = total_market_value - total_cost
-    total_profit_loss_pct = total_profit_loss / total_cost * 100
+    total_profit_loss_pct = total_profit_loss / total_cost * 100 if total_cost > 0 else 0
     avg_change = sum(r['change_pct'] for r in daily_results) / len(daily_results) if daily_results else 0
     
     # 构建 Markdown 报告
@@ -197,7 +379,7 @@ def generate_report() -> str:
 |------|------|
 | **收盘价** | ¥{r['close_price']:.2f} ({r['change_pct']:+.2f}%) |
 | **开盘 - 最高 - 最低** | ¥{r['open']:.2f} / ¥{r['high']:.2f} / ¥{r['low']:.2f} |
-| **成交量** | {r['volume']:,} 手 |
+| **成交量** | {r['volume']:,.0f} 股 |
 | **成交额** | ¥{r['amount']:,.0f} |
 | **换手率** | {r['turnover_rate']:.2f}% |
 
@@ -213,9 +395,9 @@ def generate_report() -> str:
 | 指标 | 数值 | 信号 |
 |------|------|------|
 | **均线** | MA5:¥{r['ma5']:.2f} MA10:¥{r['ma10']:.2f} MA20:¥{r['ma20']:.2f} | {r['trend']} |
-| **MACD** | DIF:{r['macd_signal']} | {r['macd_signal']} |
-| **KDJ** | K:{r['kdj_signal']} | {r['kdj_signal']} |
-| **RSI** | {r['rsi']:.1f} | {'偏强' if r['rsi'] > 50 else '偏弱'} |
+| **MACD** | DIF:{r['macd']['dif']:.2f} DEA:{r['macd']['dea']:.2f} | {r['macd_signal']} |
+| **KDJ** | K:{r['kdj']['k']:.1f} D:{r['kdj']['d']:.1f} J:{r['kdj']['j']:.1f} | {r['kdj_signal']} |
+| **RSI** | {r['rsi']:.1f} | {r['rsi_signal']} |
 
 **操作建议：** {r['action']}
 
@@ -286,6 +468,7 @@ _（每日反思，持续改进）_
 """
     
     return report
+
 
 def main():
     """

@@ -2,11 +2,18 @@
 """
 盘前预判报告
 交易日 8:30 执行，分析隔夜市场、美股表现、A50 期货等，给出操作计划
+
+数据源：
+- 隔夜市场：新浪财经 API
+- A50 期货：新浪财经
+- 人民币汇率：新浪财经
+- 持仓数据：Tushare + 腾讯财经
 """
 
 import sys
 import yaml
 import json
+import requests
 from pathlib import Path
 from datetime import datetime
 
@@ -23,34 +30,194 @@ HOLDINGS_PATH = Path(__file__).parent.parent / 'config' / 'holdings.yaml'
 with open(HOLDINGS_PATH, 'r', encoding='utf-8') as f:
     holdings_config = yaml.safe_load(f)
 
+
+def get_us_markets() -> dict:
+    """
+    获取美股三大指数（新浪财经）
+    """
+    result = {}
+    try:
+        # 美股指数代码
+        symbols = {
+            'dow': 'int_dji',      # 道琼斯
+            'nasdaq': 'int_nasdaq', # 纳斯达克
+            'sp500': 'int_sp500',   # 标普 500
+        }
+        
+        for name, symbol in symbols.items():
+            try:
+                url = f"https://hq.sinajs.cn/list={symbol}"
+                resp = requests.get(url, timeout=3)
+                if resp.status_code == 200:
+                    # 解析：var hq_str_int_dji="名称，开盘，昨收，当前，最高，最低，..."
+                    data = resp.text.strip()
+                    if '=' in data and '"' in data:
+                        parts = data.split('=')[1].strip('"').split(',')
+                        if len(parts) >= 4 and parts[2] and parts[3]:
+                            current = float(parts[3])
+                            prev_close = float(parts[2])
+                            change = ((current - prev_close) / prev_close * 100) if prev_close > 0 else 0
+                            result[name] = {
+                                'current': current,
+                                'change': change,
+                                'comment': '上涨' if change > 0.5 else '下跌' if change < -0.5 else '震荡'
+                            }
+                        else:
+                            result[name] = {'current': 0, 'change': 0, 'comment': '数据格式异常'}
+                    else:
+                        result[name] = {'current': 0, 'change': 0, 'comment': '解析失败'}
+                else:
+                    result[name] = {'current': 0, 'change': 0, 'comment': f'HTTP {resp.status_code}'}
+            except Exception as e:
+                logger.debug(f"获取{name}失败：{e}")
+                result[name] = {'current': 0, 'change': 0, 'comment': '获取失败'}
+    except Exception as e:
+        logger.warning(f"获取美股数据异常：{e}")
+    
+    # 确保所有字段都存在
+    for name in ['dow', 'nasdaq', 'sp500']:
+        if name not in result:
+            result[name] = {'current': 0, 'change': 0, 'comment': '数据获取失败'}
+    
+    return result
+
+
+def get_china_adr() -> dict:
+    """
+    获取中概股表现（纳斯达克中国金龙指数）
+    """
+    try:
+        url = "https://hq.sinajs.cn/list=HXC"
+        resp = requests.get(url, timeout=3)
+        if resp.status_code == 200:
+            data = resp.text.strip()
+            if '=' in data and '"' in data:
+                parts = data.split('=')[1].strip('"').split(',')
+                if len(parts) >= 4 and parts[2] and parts[3]:
+                    current = float(parts[3])
+                    prev_close = float(parts[2])
+                    change = ((current - prev_close) / prev_close * 100) if prev_close > 0 else 0
+                    return {
+                        'current': current,
+                        'change': change,
+                        'comment': '上涨' if change > 1 else '下跌' if change < -1 else '震荡'
+                    }
+    except Exception as e:
+        logger.debug(f"获取中概股数据失败：{e}")
+    
+    return {'current': 0, 'change': 0, 'comment': '数据获取失败'}
+
+
+def get_a50_future() -> dict:
+    """
+    获取 A50 期货（新浪财经）
+    """
+    try:
+        # 富时中国 A50 期货
+        url = "https://hq.sinajs.cn/list=s_FCHI"
+        resp = requests.get(url, timeout=3)
+        if resp.status_code == 200:
+            data = resp.text.strip()
+            if '=' in data and '"' in data:
+                parts = data.split('=')[1].strip('"').split(',')
+                if len(parts) >= 4 and parts[2] and parts[3]:
+                    current = float(parts[3])
+                    prev_close = float(parts[2])
+                    change = ((current - prev_close) / prev_close * 100) if prev_close > 0 else 0
+                    return {
+                        'current': current,
+                        'change': change,
+                        'comment': '上涨' if change > 0.3 else '下跌' if change < -0.3 else '震荡'
+                    }
+    except Exception as e:
+        logger.debug(f"获取 A50 期货数据失败：{e}")
+    
+    return {'current': 0, 'change': 0, 'comment': '数据获取失败'}
+
+
+def get_usd_cny() -> dict:
+    """
+    获取人民币汇率（在岸）
+    """
+    try:
+        url = "https://hq.sinajs.cn/list=s_USDCNY"
+        resp = requests.get(url, timeout=3)
+        if resp.status_code == 200:
+            data = resp.text.strip()
+            if '=' in data and '"' in data:
+                parts = data.split('=')[1].strip('"').split(',')
+                if len(parts) >= 4 and parts[2] and parts[3]:
+                    current = float(parts[3])
+                    prev_close = float(parts[2])
+                    change = current - prev_close
+                    return {
+                        'rate': current,
+                        'change': change,
+                        'comment': '人民币贬值' if change > 0.01 else '人民币升值' if change < -0.01 else '基本稳定'
+                    }
+    except Exception as e:
+        logger.debug(f"获取汇率数据失败：{e}")
+    
+    return {'rate': 0, 'change': 0, 'comment': '数据获取失败'}
+
+
 def get_overnight_market() -> dict:
     """
     获取隔夜市场数据
-    - 美股三大指数涨跌
-    - 中概股表现
-    - A50 期货
-    - 人民币汇率
-    - 港股开盘预期
     """
-    # TODO: 实现真实 API 获取
-    # 目前返回模拟数据
+    us_markets = get_us_markets()
+    china_adr = get_china_adr()
+    a50_future = get_a50_future()
+    usd_cny = get_usd_cny()
+    
+    # 综合情绪判断
+    us_avg_change = sum(m.get('change', 0) for m in us_markets.values()) / 3 if us_markets else 0
+    sentiment_score = us_avg_change * 0.3 + china_adr.get('change', 0) * 0.3 + a50_future.get('change', 0) * 0.4
+    
+    if sentiment_score > 0.5:
+        sentiment = '偏多'
+    elif sentiment_score < -0.5:
+        sentiment = '偏空'
+    else:
+        sentiment = '中性'
+    
+    # 总结
+    summary_parts = []
+    if us_avg_change > 0.5:
+        summary_parts.append('美股上涨')
+    elif us_avg_change < -0.5:
+        summary_parts.append('美股下跌')
+    
+    if china_adr.get('change', 0) > 1:
+        summary_parts.append('中概股上涨')
+    elif china_adr.get('change', 0) < -1:
+        summary_parts.append('中概股下跌')
+    
+    if a50_future.get('change', 0) > 0.3:
+        summary_parts.append('A50 期货上涨')
+    elif a50_future.get('change', 0) < -0.3:
+        summary_parts.append('A50 期货下跌')
+    
+    summary = '，'.join(summary_parts) if summary_parts else '市场波动较小'
+    summary += f'，预计 A 股{"高开" if sentiment == "偏多" else "低开" if sentiment == "偏空" else "平开"}'
+    
     return {
-        'us_markets': {
-            'dow': {'change': -0.5, 'comment': '小幅下跌'},
-            'nasdaq': {'change': -0.8, 'comment': '科技股承压'},
-            'sp500': {'change': -0.6, 'comment': '跟随下跌'},
-        },
-        'china_adr': {'change': -1.2, 'comment': '中概股普跌'},
-        'a50_future': {'change': -0.3, 'comment': 'A50 期货微跌'},
-        'usd_cny': {'rate': 7.25, 'change': 0.05, 'comment': '人民币小幅贬值'},
-        'sentiment': '偏空',
-        'summary': '隔夜美股下跌，中概股表现疲软，A50 期货微跌，预计 A50 低开',
+        'us_markets': us_markets,
+        'china_adr': china_adr,
+        'a50_future': a50_future,
+        'usd_cny': usd_cny,
+        'sentiment': sentiment,
+        'summary': summary,
     }
+
 
 def get_holding_analysis() -> list:
     """
     分析持仓股票的盘前状态
     """
+    from data.tushare_client import get_pe_pb_percentile
+    from data.realtime_fetcher import fetch_realtime_price
+    
     holdings = holdings_config.get('holdings', [])
     analysis = []
     
@@ -60,19 +227,66 @@ def get_holding_analysis() -> list:
         shares = holding['shares']
         cost_price = holding['cost_price']
         
-        # TODO: 获取真实数据
-        # 目前返回模拟分析
-        analysis.append({
-            'code': code,
-            'name': name,
-            'shares': shares,
-            'cost_price': cost_price,
-            'expected_open': '平开或小幅低开',
-            'key_level': f"支撑位：{cost_price * 0.95:.2f}, 压力位：{cost_price * 1.05:.2f}",
-            'action': '观望，等待盘中确认',
-        })
+        try:
+            # 获取最新价格（昨日收盘）
+            price_data = fetch_realtime_price(code, use_cache=True)
+            current_price = price_data.get('price', cost_price)
+            
+            # 获取估值分位
+            try:
+                pe_pb = get_pe_pb_percentile(code)
+                pe_percentile = pe_pb.get('pe_percentile_5y', 50)
+            except:
+                pe_percentile = 50
+            
+            # 计算与成本价的差距
+            vs_cost = (current_price - cost_price) / cost_price * 100
+            
+            # 判断预期开盘
+            if vs_cost > 20:
+                expected_open = '盈利较多，注意止盈机会'
+            elif vs_cost > 10:
+                expected_open = '盈利状态，继续持有'
+            elif vs_cost > -5:
+                expected_open = '成本线附近，正常波动'
+            elif vs_cost > -10:
+                expected_open = '小幅亏损，准备补仓'
+            else:
+                expected_open = '深度亏损，关注补仓机会'
+            
+            # 关键位置
+            support = cost_price * 0.95
+            resistance = cost_price * 1.05
+            
+            analysis.append({
+                'code': code,
+                'name': name,
+                'shares': shares,
+                'cost_price': cost_price,
+                'current_price': current_price,
+                'pe_percentile': pe_percentile,
+                'vs_cost': vs_cost,
+                'expected_open': expected_open,
+                'key_level': f"支撑位：¥{support:.2f}, 压力位：¥{resistance:.2f}",
+                'action': '观望，等待盘中确认',
+            })
+        except Exception as e:
+            logger.error(f"分析持仓 {code} 失败：{e}")
+            analysis.append({
+                'code': code,
+                'name': name,
+                'shares': shares,
+                'cost_price': cost_price,
+                'current_price': 0,
+                'pe_percentile': 50,
+                'vs_cost': 0,
+                'expected_open': '数据获取失败',
+                'key_level': '-',
+                'action': '等待数据更新',
+            })
     
     return analysis
+
 
 def generate_report() -> str:
     """
@@ -83,6 +297,7 @@ def generate_report() -> str:
     holdings = get_holding_analysis()
     
     # 构建 Markdown 报告
+    us = market['us_markets']
     report = f"""# 🌅 AI 价值投资系统 - 盘前预判报告
 
 **报告时间：** {now.strftime('%Y-%m-%d %H:%M')}  
@@ -93,16 +308,16 @@ def generate_report() -> str:
 ## 📊 隔夜市场概览
 
 ### 美股表现
-| 指数 | 涨跌幅 | 评论 |
-|------|--------|------|
-| 道琼斯 | {market['us_markets']['dow']['change']:+.1f}% | {market['us_markets']['dow']['comment']} |
-| 纳斯达克 | {market['us_markets']['nasdaq']['change']:+.1f}% | {market['us_markets']['nasdaq']['comment']} |
-| 标普 500 | {market['us_markets']['sp500']['change']:+.1f}% | {market['us_markets']['sp500']['comment']} |
+| 指数 | 收盘 | 涨跌幅 | 评论 |
+|------|------|--------|------|
+| 道琼斯 | {us.get('dow', {}).get('current', 0):.0f} | {us.get('dow', {}).get('change', 0):+.1f}% | {us.get('dow', {}).get('comment', '-')} |
+| 纳斯达克 | {us.get('nasdaq', {}).get('current', 0):.0f} | {us.get('nasdaq', {}).get('change', 0):+.1f}% | {us.get('nasdaq', {}).get('comment', '-')} |
+| 标普 500 | {us.get('sp500', {}).get('current', 0):.0f} | {us.get('sp500', {}).get('change', 0):+.1f}% | {us.get('sp500', {}).get('comment', '-')} |
 
 ### 其他指标
-- **中概股：** {market['china_adr']['change']:+.1f}% - {market['china_adr']['comment']}
-- **A50 期货：** {market['a50_future']['change']:+.1f}% - {market['a50_future']['comment']}
-- **人民币汇率：** {market['usd_cny']['rate']:.4f} ({market['usd_cny']['change']:+.2f}%) - {market['usd_cny']['comment']}
+- **中概股：** {market['china_adr'].get('current', 0):.0f} ({market['china_adr'].get('change', 0):+.1f}%) - {market['china_adr'].get('comment', '-')}
+- **A50 期货：** {market['a50_future'].get('current', 0):.0f} ({market['a50_future'].get('change', 0):+.1f}%) - {market['a50_future'].get('comment', '-')}
+- **人民币汇率：** {market['usd_cny'].get('rate', 0):.4f} ({market['usd_cny'].get('change', 0):+.3f}) - {market['usd_cny'].get('comment', '-')}
 
 ### 市场情绪
 **整体情绪：** {market['sentiment']}  
@@ -115,18 +330,22 @@ def generate_report() -> str:
 """
     
     for h in holdings:
+        current_price = h['current_price'] if h['current_price'] else h['cost_price']
+        vs_cost = h['vs_cost'] if h['vs_cost'] else 0
+        pe_percentile = h['pe_percentile'] if h['pe_percentile'] else 50
+        
         report += f"""### {h['name']} ({h['code']})
 - **持仓：** {h['shares']:,} 股
 - **成本价：** ¥{h['cost_price']:.3f}
+- **最新价：** ¥{current_price:.2f} ({vs_cost:+.1f}%)
+- **PE 分位：** {pe_percentile:.0f}%
 - **预期开盘：** {h['expected_open']}
 - **关键位置：** {h['key_level']}
 - **操作计划：** {h['action']}
 
 """
     
-    report += f"""---
-
-## 🎯 今日操作计划
+    report += f"""## 🎯 今日操作计划
 
 ### 总体策略
 基于隔夜市场表现，建议采取 **{market['sentiment']}** 策略：
@@ -136,7 +355,7 @@ def generate_report() -> str:
 3. **关键位置：** 若跌破支撑位，准备执行补仓计划；若突破压力位，考虑减仓
 
 ### 重点关注
-- 美股下跌对 A 股的传导效应
+- 隔夜市场波动对 A 股的传导效应
 - 人民币汇率变动对外资流向的影响
 - 持仓股的盘中表现
 
@@ -154,6 +373,7 @@ def generate_report() -> str:
 """
     
     return report
+
 
 def main():
     """

@@ -2,11 +2,15 @@
 """
 集合竞价报告
 交易日 9:25 执行，分析集合竞价结果，给出最终操作计划
+
+数据源：
+- 集合竞价：腾讯财经/东方财富 API
+- 持仓成本：本地配置
 """
 
 import sys
 import yaml
-import json
+import requests
 from pathlib import Path
 from datetime import datetime
 
@@ -23,30 +27,72 @@ HOLDINGS_PATH = Path(__file__).parent.parent / 'config' / 'holdings.yaml'
 with open(HOLDINGS_PATH, 'r', encoding='utf-8') as f:
     holdings_config = yaml.safe_load(f)
 
+
 def get_auction_data(ts_code: str) -> dict:
     """
-    获取集合竞价数据
-    TODO: 实现真实 API 获取
+    获取集合竞价数据（腾讯财经）
+    9:15-9:25 期间获取集合竞价数据
     """
-    # 模拟数据
-    import random
-    base_price = 33.0 if '002270' in ts_code else 2.0
+    try:
+        # 转换股票代码
+        parts = ts_code.split('.')
+        if len(parts) != 2:
+            return None
+        
+        code, exchange = parts
+        market = 'sz' if exchange.lower() == 'sz' else 'sh'
+        
+        # 腾讯财经集合竞价数据
+        url = f"http://qt.gtimg.cn/q={market}{code}"
+        resp = requests.get(url, timeout=5)
+        
+        if resp.status_code == 200:
+            # 解析：v_sz002270="51~名称~代码~当前价~收盘价~开盘价~最高~最低~成交量~成交额~..."
+            data = resp.text.strip()
+            if '=' in data and '"' in data:
+                data_str = data.split('=')[1].strip('"')
+                p = data_str.split('~')
+                
+                if len(p) >= 32:
+                    # 字段映射（腾讯财经格式）
+                    # p[3]=当前价，p[4]=昨收，p[5]=开盘，p[6]=最高，p[7]=最低
+                    # p[8]=成交量（手），p[9]=成交额（万元），p[31]=竞价匹配量，p[32]=竞价未匹配量
+                    current = float(p[3]) if p[3] else 0
+                    prev_close = float(p[4]) if p[4] else current
+                    open_price = float(p[5]) if p[5] else current
+                    high = float(p[6]) if p[6] else current
+                    low = float(p[7]) if p[7] else current
+                    volume = float(p[8]) if p[8] else 0  # 手
+                    amount = float(p[9]) if p[9] else 0  # 万元
+                    
+                    # 计算涨跌幅
+                    change_pct = ((current - prev_close) / prev_close * 100) if prev_close > 0 else 0
+                    
+                    # 竞价数据（如果有）
+                    match_volume = int(float(p[31]) * 100) if len(p) > 31 and p[31] else int(volume)
+                    unmatched = int(float(p[32]) * 100) if len(p) > 32 and p[32] else 0
+                    
+                    # 买卖比
+                    bid_ask_ratio = (match_volume + unmatched) / match_volume if match_volume > 0 else 1
+                    
+                    return {
+                        'open_price': open_price,
+                        'current': current,
+                        'prev_close': prev_close,
+                        'high': high,
+                        'low': low,
+                        'change_pct': change_pct,
+                        'volume': int(volume * 100),  # 转换为股
+                        'amount': amount * 10000,  # 转换为元
+                        'match_volume': match_volume,
+                        'unmatched': unmatched,
+                        'bid_ask_ratio': bid_ask_ratio,
+                    }
+    except Exception as e:
+        logger.warning(f"获取集合竞价数据失败 {ts_code}: {e}")
     
-    # 随机生成竞价结果
-    change_pct = random.uniform(-2.0, 2.0)
-    open_price = base_price * (1 + change_pct / 100)
-    volume = random.randint(10000, 500000)
-    amount = volume * open_price
-    
-    return {
-        'open_price': open_price,
-        'change_pct': change_pct,
-        'volume': volume,
-        'amount': amount,
-        'match_volume': int(volume * 0.8),  # 匹配成交量
-        'unmatched': int(volume * 0.2),  # 未匹配量
-        'bid_ask_ratio': random.uniform(0.8, 1.2),  # 买卖比
-    }
+    return None
+
 
 def analyze_auction(code: str, name: str, auction_data: dict, cost_price: float) -> dict:
     """
@@ -84,6 +130,15 @@ def analyze_auction(code: str, name: str, auction_data: dict, cost_price: float)
     else:
         action = '到达补仓区间，执行补仓计划'
     
+    # 买卖盘分析
+    bid_ask = auction_data['bid_ask_ratio']
+    if bid_ask > 1.2:
+        bid_ask_comment = '买盘较强'
+    elif bid_ask < 0.8:
+        bid_ask_comment = '卖盘较强'
+    else:
+        bid_ask_comment = '买卖平衡'
+    
     return {
         'code': code,
         'name': name,
@@ -94,9 +149,11 @@ def analyze_auction(code: str, name: str, auction_data: dict, cost_price: float)
         'vs_cost': vs_cost,
         'volume': auction_data['volume'],
         'amount': auction_data['amount'],
-        'bid_ask_ratio': auction_data['bid_ask_ratio'],
+        'bid_ask_ratio': bid_ask,
+        'bid_ask_comment': bid_ask_comment,
         'action': action,
     }
+
 
 def generate_report() -> str:
     """
@@ -113,14 +170,42 @@ def generate_report() -> str:
         shares = holding['shares']
         
         auction_data = get_auction_data(code)
-        analysis = analyze_auction(code, name, auction_data, cost_price)
-        analysis['shares'] = shares
-        analysis['cost_price'] = cost_price
-        auction_results.append(analysis)
+        
+        if auction_data:
+            analysis = analyze_auction(code, name, auction_data, cost_price)
+            analysis['shares'] = shares
+            analysis['cost_price'] = cost_price
+            auction_results.append(analysis)
+        else:
+            # 数据获取失败，使用默认值
+            auction_results.append({
+                'code': code,
+                'name': name,
+                'open_price': cost_price,
+                'change_pct': 0,
+                'strength': '数据获取失败',
+                'signal': '⚪',
+                'vs_cost': 0,
+                'shares': shares,
+                'cost_price': cost_price,
+                'volume': 0,
+                'amount': 0,
+                'bid_ask_ratio': 1,
+                'bid_ask_comment': '-',
+                'action': '等待数据更新',
+            })
     
     # 计算整体情况
     total_market_value = sum(r['open_price'] * r['shares'] for r in auction_results)
     avg_change = sum(r['change_pct'] for r in auction_results) / len(auction_results) if auction_results else 0
+    
+    # 竞价情绪
+    if avg_change > 0.5:
+        auction_sentiment = '偏强'
+    elif avg_change > -0.5:
+        auction_sentiment = '中性'
+    else:
+        auction_sentiment = '偏弱'
     
     # 构建 Markdown 报告
     report = f"""# 🔔 AI 价值投资系统 - 集合竞价报告
@@ -137,7 +222,7 @@ def generate_report() -> str:
 |------|------|
 | **持仓总市值** | ¥{total_market_value:,.0f} |
 | **平均涨跌幅** | {avg_change:+.2f}% |
-| **竞价情绪** | {'偏强' if avg_change > 0.5 else '中性' if avg_change > -0.5 else '偏弱'} |
+| **竞价情绪** | {auction_sentiment} |
 
 ---
 
@@ -159,7 +244,7 @@ def generate_report() -> str:
 | **持仓市值** | ¥{market_value:,.0f} |
 | **浮动盈亏** | ¥{profit_loss:+,.0f} ({profit_loss_pct:+.1f}%) |
 | **竞价成交量** | {r['volume']:,} 股 (¥{r['amount']:,.0f}) |
-| **买卖比** | {r['bid_ask_ratio']:.2f} |
+| **买卖比** | {r['bid_ask_ratio']:.2f} ({r['bid_ask_comment']}) |
 
 **操作建议：** {r['action']}
 
@@ -212,6 +297,7 @@ def generate_report() -> str:
 """
     
     return report
+
 
 def main():
     """
