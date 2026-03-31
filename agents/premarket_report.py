@@ -33,54 +33,10 @@ with open(HOLDINGS_PATH, 'r', encoding='utf-8') as f:
 
 def get_us_markets() -> dict:
     """
-    获取美股三大指数（东方财富 API - 更稳定）
+    获取美股三大指数（使用 CNBC API）
     """
-    result = {}
-    try:
-        # 东方财富美股指数代码
-        symbols = {
-            'dow': '100.DJIA',      # 道琼斯
-            'nasdaq': '100.NDX',    # 纳斯达克 100
-            'sp500': '100.SPX',     # 标普 500
-        }
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': 'https://quote.eastmoney.com/',
-        }
-        
-        for name, symbol in symbols.items():
-            try:
-                # 东方财富 API
-                url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={symbol}&fields=f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f53,f54,f55,f56,f57,f58,f59,f60"
-                resp = requests.get(url, timeout=5, headers=headers)
-                
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data.get('data'):
-                        d = data['data']
-                        current = d.get('f47', 0)  # 当前价
-                        prev_close = d.get('f46', 1)  # 昨收
-                        change = d.get('f48', 0)  # 涨跌幅
-                        change_pct = d.get('f49', 0)  # 涨跌幅百分比
-                        
-                        result[name] = {
-                            'current': current,
-                            'change': change_pct,
-                            'comment': '上涨' if change_pct > 0.5 else '下跌' if change_pct < -0.5 else '震荡'
-                        }
-            except Exception as e:
-                logger.debug(f"获取{name}失败：{e}")
-                result[name] = {'current': 0, 'change': 0, 'comment': '获取失败'}
-    except Exception as e:
-        logger.warning(f"获取美股数据异常：{e}")
-    
-    # 确保所有字段都存在
-    for name in ['dow', 'nasdaq', 'sp500']:
-        if name not in result:
-            result[name] = {'current': 0, 'change': 0, 'comment': '数据获取失败'}
-    
-    return result
+    from utils.us_market_data import get_us_markets_from_cnbc
+    return get_us_markets_from_cnbc()
 
 
 def get_china_adr() -> dict:

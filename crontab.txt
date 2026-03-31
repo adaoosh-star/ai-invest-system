@@ -9,9 +9,11 @@
 0,30 9-15 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 monitor/holding_monitor.py >> cache/cron_monitor.log 2>&1
 
 # 盘前预判报告 - 交易日 8:30（隔夜市场、操作计划）
+# 注意：隔夜市场数据可能因网络限制不可用，但持仓分析正常
 30 8 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/premarket_report.py >> cache/cron_premarket.log 2>&1
 
 # 集合竞价报告 - 交易日 9:25（竞价结果、最终计划）
+# 注意：只在 9:15-9:25 期间有竞价数据，其他时间显示昨日收盘
 25 9 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/auction_report.py >> cache/cron_auction.log 2>&1
 
 # 盘后复盘报告 - 交易日 21:00（收盘数据、技术分析、消息面、情绪面）
