@@ -33,101 +33,38 @@ with open(HOLDINGS_PATH, 'r', encoding='utf-8') as f:
 
 def get_us_markets() -> dict:
     """
-    获取美股三大指数（使用 CNBC API）
+    获取美股三大指数（多数据源冗余）
     """
-    from utils.us_market_data import get_us_markets_from_cnbc
-    return get_us_markets_from_cnbc()
+    from utils.overnight_market import get_overnight_market
+    market = get_overnight_market()
+    return market['us_markets']
 
 
 def get_china_adr() -> dict:
     """
-    获取中概股表现（纳斯达克中国金龙指数）
+    获取中概股表现（多数据源冗余）
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://finance.sina.com.cn/',
-    }
-    try:
-        url = "https://hq.sinajs.cn/list=HXC"
-        resp = requests.get(url, timeout=3, headers=headers)
-        if resp.status_code == 200:
-            data = resp.text.strip()
-            if '=' in data and '"' in data:
-                parts = data.split('=')[1].strip('"').split(',')
-                if len(parts) >= 4 and parts[2] and parts[3]:
-                    current = float(parts[3])
-                    prev_close = float(parts[2])
-                    change = ((current - prev_close) / prev_close * 100) if prev_close > 0 else 0
-                    return {
-                        'current': current,
-                        'change': change,
-                        'comment': '上涨' if change > 1 else '下跌' if change < -1 else '震荡'
-                    }
-    except Exception as e:
-        logger.debug(f"获取中概股数据失败：{e}")
-    
-    return {'current': 0, 'change': 0, 'comment': '数据获取失败'}
+    from utils.overnight_market import get_overnight_market
+    market = get_overnight_market()
+    return market['china_adr']
 
 
 def get_a50_future() -> dict:
     """
-    获取 A50 期货（新浪财经）
+    获取 A50 期货（多数据源冗余）
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://finance.sina.com.cn/',
-    }
-    try:
-        # 富时中国 A50 期货
-        url = "https://hq.sinajs.cn/list=s_FCHI"
-        resp = requests.get(url, timeout=3, headers=headers)
-        if resp.status_code == 200:
-            data = resp.text.strip()
-            if '=' in data and '"' in data:
-                parts = data.split('=')[1].strip('"').split(',')
-                if len(parts) >= 4 and parts[2] and parts[3]:
-                    current = float(parts[3])
-                    prev_close = float(parts[2])
-                    change = ((current - prev_close) / prev_close * 100) if prev_close > 0 else 0
-                    return {
-                        'current': current,
-                        'change': change,
-                        'comment': '上涨' if change > 0.3 else '下跌' if change < -0.3 else '震荡'
-                    }
-    except Exception as e:
-        logger.debug(f"获取 A50 期货数据失败：{e}")
-    
-    return {'current': 0, 'change': 0, 'comment': '数据获取失败'}
+    from utils.overnight_market import get_overnight_market
+    market = get_overnight_market()
+    return market['a50_future']
 
 
 def get_usd_cny() -> dict:
     """
-    获取人民币汇率（在岸）
+    获取人民币汇率（多数据源冗余）
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://finance.sina.com.cn/',
-    }
-    try:
-        url = "https://hq.sinajs.cn/list=s_USDCNY"
-        resp = requests.get(url, timeout=3, headers=headers)
-        if resp.status_code == 200:
-            data = resp.text.strip()
-            if '=' in data and '"' in data:
-                parts = data.split('=')[1].strip('"').split(',')
-                if len(parts) >= 4 and parts[2] and parts[3]:
-                    current = float(parts[3])
-                    prev_close = float(parts[2])
-                    change = current - prev_close
-                    return {
-                        'rate': current,
-                        'change': change,
-                        'comment': '人民币贬值' if change > 0.01 else '人民币升值' if change < -0.01 else '基本稳定'
-                    }
-    except Exception as e:
-        logger.debug(f"获取汇率数据失败：{e}")
-    
-    return {'rate': 0, 'change': 0, 'comment': '数据获取失败'}
+    from utils.overnight_market import get_overnight_market
+    market = get_overnight_market()
+    return market['usd_cny']
 
 
 def get_overnight_market() -> dict:
