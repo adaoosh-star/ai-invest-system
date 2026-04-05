@@ -63,8 +63,13 @@ class DataFetcher:
             key += f"_{k}_{v}"
         return key
     
-    def _load_cache(self, key: str, max_age_hours: int = 24) -> dict:
-        """加载缓存"""
+    def _load_cache(self, key: str, max_age_hours: int = 2) -> dict:
+        """加载缓存
+        
+        修复记录：2026-03-31 22:30
+        - 缓存有效期从 24 小时改为 2 小时
+        - 原因：盘后数据已更新，但旧缓存还在有效期内，导致使用昨天数据
+        """
         cache_file = self.CACHE_DIR / f"{key}.json"
         if cache_file.exists():
             try:
@@ -135,7 +140,7 @@ class DataFetcher:
                         # 合并今日数据
                         today_df = pd.DataFrame([today_row])
                         df = pd.concat([hist_df, today_df], ignore_index=True)
-                        df = df.sort_values('trade_date')
+                        df = df.sort_values('trade_date', ascending=False)  # 降序：最新数据在第一行
                         return df
                     else:
                         return pd.DataFrame([today_row])
@@ -164,7 +169,7 @@ class DataFetcher:
                 df = self.pro.daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
             
             if not df.empty:
-                df = df.sort_values('trade_date')
+                df = df.sort_values('trade_date', ascending=False)  # 降序：最新数据在第一行
                 # 缓存
                 self._save_cache(cache_key, {'data': df.to_dict('records')})
             

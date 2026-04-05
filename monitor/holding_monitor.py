@@ -73,8 +73,8 @@ def get_current_data(ts_code: str) -> dict:
         # 2. 获取估值分位
         try:
             pe_pb = get_pe_pb_percentile(ts_code)
-            # Tushare 返回的是小数，需要乘以 100
-            result['pe_percentile'] = pe_pb.get('pe_percentile_5y', 0) * 100
+            # Tushare 返回的是小数（0-1），保持原样
+            result['pe_percentile'] = pe_pb.get('pe_percentile_5y', 0)
             result['pb_percentile'] = pe_pb.get('pb_percentile_5y', 0)
         except:
             pass
@@ -368,6 +368,74 @@ def format_report(report: dict, verbose: bool = False) -> str:
     
     return "\n".join(lines)
 
+def push_to_dingtalk(content: str):
+    """
+    推送到钉钉（通过 Node.js 脚本调用钉钉连接器）
+    """
+    import subprocess
+    import tempfile
+    import os
+    
+    # 转义反引号
+    escaped_content = content.replace('`', '\\`')
+    
+    # 创建临时 JS 脚本
+    js_code = f"""
+import {{ sendProactive }} from '/home/admin/.openclaw/extensions/dingtalk-connector/src/services/messaging.ts';
+
+const config = {{
+  clientId: "dinggmk7kpiddrrvi0l5",
+  clientSecret: "9RR-37dNLUKRkzzS-1RN5CHsDSJnIKEtBCd3-O9MqB7SvYUduBwse8FhEtMnr2bN",
+  gatewayToken: "7c945e183e33b18df341e2c3ad9ced59e0a7f156d7d20238"
+}};
+
+const userId = "01023647151178899";
+const content = `{escaped_content}`;
+
+async function push() {{
+  try {{
+    const result = await sendProactive(config, {{ userId }}, content, {{
+      msgType: "markdown",
+      title: "AI 价值投资系统",
+    }});
+    console.log('推送成功:', result);
+  }} catch (error) {{
+    console.error('推送失败:', error);
+    process.exit(1);
+  }}
+}}
+
+push();
+"""
+    
+    try:
+        # 写入临时文件
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ts', delete=False) as f:
+            f.write(js_code)
+            temp_file = f.name
+        
+        # 执行 Node.js 脚本
+        result = subprocess.run(
+            ['npx', 'tsx', temp_file],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd='/home/admin/.openclaw/extensions/dingtalk-connector',
+            env={**os.environ, 'NODE_NO_WARNINGS': '1'}
+        )
+        
+        if result.returncode == 0:
+            logger.info("📤 Dingtalk 推送成功")
+        else:
+            logger.error(f"📤 Dingtalk 推送失败：{result.stderr}")
+        
+        # 清理临时文件
+        os.unlink(temp_file)
+        
+    except Exception as e:
+        logger.error(f"📤 Dingtalk 推送异常：{e}")
+
+
 # 主程序
 if __name__ == '__main__':
     logger.info("=" * 60)
@@ -386,8 +454,9 @@ if __name__ == '__main__':
         
         # 优化策略：仅预警时推送，否则只保存文件
         if has_alert:
-            # 有预警：输出完整报告（供 cron 推送）
+            # 有预警：输出完整报告 + 推送 dingtalk
             print(formatted)
+            push_to_dingtalk(formatted)
             logger.info("🔔 有预警，已推送完整报告")
         else:
             # 无预警：仅输出简洁摘要（不推送）

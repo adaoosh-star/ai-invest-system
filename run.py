@@ -100,14 +100,13 @@ def select_stocks():
     
     print(f"\n选股结果汇总：")
     print(f"  全市场股票：{result['summary']['total']}")
-    print(f"  通过流动性过滤：{result['summary']['passed_liquidity']}")
-    print(f"  通过硬底线筛选：{result['summary']['passed_hard_bottom']}")
-    print(f"  缓存命中率：{result['summary']['cache_hit_rate']:.1%}")
+    print(f"  通过筛选：{result['summary']['passed_hard_bottom']}")
+    print(f"  报告路径：{result['summary'].get('output_file', 'N/A')}")
     
     if result['candidates']:
-        print(f"\n候选股票（前 10 只）：")
+        print(f"\n候选股票 TOP 10：")
         for stock in result['candidates'][:10]:
-            print(f"  - {stock['ts_code']}")
+            print(f"  - {stock['ts_code']} {stock['name']} (评分：{stock.get('score', 0):.0f})")
     
     return result
 

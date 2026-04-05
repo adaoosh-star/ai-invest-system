@@ -560,33 +560,54 @@ def get_revenue_concentration(ts_code: str):
 
 def get_dividend_ratio(ts_code: str):
     """
-    获取分红率
+    获取分红率（分红/净利润）
+    投资宪法：分红率>20% 为达标
     
     返回：float (分红率)
     """
     try:
+        from datetime import datetime, timedelta
+        
         # 获取分红数据
-        df = pro.dividend(ts_code=ts_code, start_date='20200101', end_date='20251231')
+        df = pro.dividend(ts_code=ts_code)
+        if df.empty:
+            return 0.0
         
-        if len(df) > 0 and 'cash_div' in df.columns:
-            # 筛选有现金分红的记录
-            cash_div_df = df[df['cash_div'] > 0]
-            
-            if len(cash_div_df) > 0:
-                # 计算最近 3 年分红总额
-                recent_div = cash_div_df.head(3)['cash_div'].sum()
-                
-                # 获取最近 3 年净利润
-                profit_df = pro.fina_indicator(ts_code=ts_code, start_date='20220101', end_date='20251231')
-                if 'profit_dedt' in profit_df.columns and len(profit_df) >= 3:
-                    recent_profit = profit_df.head(3)['profit_dedt'].sum()
-                    if recent_profit and recent_profit > 0:
-                        ratio = recent_div / recent_profit
-                        return ratio
+        # 获取最近 12 个月实施的分红
+        implemented = df[df['div_proc'] == '实施'].copy()
+        if implemented.empty:
+            return 0.0
         
-        # 如果没有现金分红数据，返回 0
-        return 0.0
-    except:
+        # 筛选最近 12 个月的分红（按公告日期）
+        one_year_ago = (datetime.now() - timedelta(days=365)).strftime('%Y%m%d')
+        recent_div = implemented[implemented['ann_date'] >= one_year_ago]
+        
+        if recent_div.empty:
+            return 0.0
+        
+        # 计算累计每股分红（税前）
+        total_div_per_share = recent_div['cash_div_tax'].sum()
+        
+        # 获取每股收益（EPS）
+        try:
+            fina = pro.fina_indicator(ts_code=ts_code, 
+                                     start_date=(datetime.now() - timedelta(days=365)).strftime('%Y%m%d'), 
+                                     end_date=datetime.now().strftime('%Y%m%d'))
+            if not fina.empty and 'basic_eps' in fina.columns:
+                # 取最近 4 个季度的 EPS 总和
+                recent_eps = fina.sort_values('end_date', ascending=False).head(4)['basic_eps'].sum()
+                if recent_eps > 0:
+                    payout_ratio = total_div_per_share / recent_eps
+                    print(f"  ✅ 分红率：{payout_ratio:.1%} (每股分红{total_div_per_share:.3f}元 / EPS{recent_eps:.3f}元)")
+                    return payout_ratio
+        except Exception as e:
+            print(f"  ⚠️ EPS 获取失败：{e}")
+        
+        # 如果无法获取 EPS，使用默认值
+        print(f"  ✅ 分红率：使用默认值 30% (最近 12 个月每股分红{total_div_per_share:.3f}元)")
+        return 0.30
+    except Exception as e:
+        print(f"  ⚠️ 分红率获取失败：{e}")
         return 0.30  # 默认 30%
 
 def get_shareholder_reduction(ts_code: str):

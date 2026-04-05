@@ -96,21 +96,90 @@ def get_china_adr() -> dict:
 
 def get_a50_future() -> dict:
     """
-    获取 A50 期货
-    数据源：待补充（目前返回模拟数据）
+    获取 A50 期货（富时中国 A50）
+    数据源：中财网（轻量级，无需浏览器）
+    URL: https://quote.cfi.cn/quote30961_30961.html
     """
-    # TODO: 寻找可用的 A50 数据源
-    return {'current': 0, 'change': 0, 'comment': '数据源寻找中'}
+    try:
+        resp = requests.get(
+            'https://quote.cfi.cn/quote30961_30961.html',
+            timeout=10,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www.cfi.cn/'
+            }
+        )
+        if resp.status_code == 200:
+            import re
+            content = resp.text
+            # 查找价格：ind_pclose green'>14624.31</span>
+            price_match = re.search(r"ind_pclose\s+\w+'>([\d.]+)</span>", content)
+            # 查找百分比：(green'>(-0.12%)
+            pct_match = re.search(r"\(([\-\d.]+)%\)", content)
+            
+            if price_match:
+                current = float(price_match.group(1))
+                change_pct = float(pct_match.group(1)) if pct_match else 0
+                return {
+                    'current': current,
+                    'change': change_pct,
+                    'comment': '上涨' if change_pct > 0.3 else '下跌' if change_pct < -0.3 else '震荡'
+                }
+    except Exception as e:
+        print(f'A50 CFI ERROR: {e}')
+    
+    # 备用方案：东方财富 Playwright
+    try:
+        from playwright.sync_api import sync_playwright
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto('https://quote.eastmoney.com/globalfuture/CN00Y.html', timeout=15000)
+            page.wait_for_timeout(5000)
+            content = page.content()
+            browser.close()
+        
+        import re
+        price_match = re.search(r'最新：.*?>([\d.]+)</span>', content, re.S)
+        pct_match = re.search(r'涨幅：.*?>([\-\d.]+)%', content, re.S)
+        
+        if price_match:
+            current = float(price_match.group(1))
+            change_pct = float(pct_match.group(1)) if pct_match else 0
+            return {
+                'current': current,
+                'change': change_pct,
+                'comment': '上涨' if change_pct > 0.3 else '下跌' if change_pct < -0.3 else '震荡'
+            }
+    except Exception as e:
+        print(f'A50 Eastmoney Playwright ERROR: {e}')
+    
+    return {'current': 0, 'change': 0, 'comment': '数据源维护中'}
 
 
 def get_usd_cny() -> dict:
     """
     获取人民币汇率（USD/CNY）
-    数据源：中国银行（待实现）
+    数据源：exchangerate-api.com（免费 API）
     """
-    # TODO: 实现中国银行外汇牌价解析
-    # 当前返回模拟数据
-    return {'rate': 7.25, 'change': 0, 'comment': '数据源接入中'}
+    try:
+        resp = requests.get('https://api.exchangerate-api.com/v4/latest/USD', timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            rate = data.get('rates', {}).get('CNY', 0)
+            if rate > 0:
+                # 假设昨日汇率为今日汇率（简化处理）
+                return {
+                    'rate': rate,
+                    'change': 0,
+                    'comment': '稳定' if 7.0 <= rate <= 7.5 else '波动'
+                }
+    except:
+        pass
+    
+    # 降级：返回临时数据
+    return {'rate': 7.25, 'change': 0, 'comment': '数据源维护中'}
 
 
 def get_overnight_market() -> dict:

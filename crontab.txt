@@ -1,5 +1,5 @@
 # AI 价值投资系统 - 定时任务配置
-# 最后恢复：2026-03-30 20:55
+# 最后更新：2026-03-31 13:00
 # 安装命令：crontab crontab.txt
 
 # ==================== 交易日报告（周一到周五） ====================
@@ -8,13 +8,9 @@
 # 优化：仅预警时推送，否则保存文件
 0,30 9-15 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 monitor/holding_monitor.py >> cache/cron_monitor.log 2>&1
 
-# 盘前预判报告 - 交易日 8:30（隔夜市场、操作计划）
-# 注意：隔夜市场数据可能因网络限制不可用，但持仓分析正常
-30 8 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/premarket_report.py >> cache/cron_premarket.log 2>&1
-
-# 集合竞价报告 - 交易日 9:25（竞价结果、最终计划）
-# 注意：只在 9:15-9:25 期间有竞价数据，其他时间显示昨日收盘
-25 9 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/auction_report.py >> cache/cron_auction.log 2>&1
+# 盘前预判报告 - 交易日 9:25（隔夜市场 + 集合竞价 + 操作计划）
+# 9:15-9:25 集合竞价结束后发送，包含完整信息
+25 9 * * 1-5 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 agents/premarket_report.py >> cache/cron_premarket.log 2>&1
 
 # 盘后复盘报告 - 交易日 21:00（收盘数据、技术分析、消息面、情绪面）
 # Tushare 盘后数据已更新，数据更完整，包含更多消息面和情绪信息
@@ -22,13 +18,11 @@
 
 # ==================== 周度任务 ====================
 
-# AI 竞争情报周报 - 每周一 9:00
-0 9 * * 1 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 review/weekly_review.py >> cache/cron_weekly.log 2>&1
+# 持仓周复盘 - 每周日 20:00（价格异动、估值变化、卖出预警）
+0 20 * * 0 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 review/weekly_review.py >> /home/admin/.openclaw/workspace/ai-invest-system-code/cache/cron_weekly_review.log 2>&1
 
-# ==================== 心跳检查（OpenClaw） ====================
-
-# 每 30 分钟检查一次心跳
-*/30 * * * * echo "HEARTBEAT_OK" >> /home/admin/.openclaw/workspace/heartbeat.log 2>&1
+# 保险科技周报 - 每周一 9:00（行业政策、竞品动态、科技趋势）
+0 9 * * 1 cd /home/admin/.openclaw/workspace/ai-invest-system-code && python3 review/insurance_tech_weekly.py >> /home/admin/.openclaw/workspace/ai-invest-system-code/cache/cron_weekly.log 2>&1
 
 # ==================== 自动备份 ====================
 

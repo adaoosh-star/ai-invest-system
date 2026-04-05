@@ -67,6 +67,61 @@ def get_usd_cny() -> dict:
     return market['usd_cny']
 
 
+def get_auction_data(ts_code: str) -> dict:
+    """
+    获取集合竞价数据（腾讯财经）
+    9:15-9:25 期间获取集合竞价数据
+    """
+    try:
+        parts = ts_code.split('.')
+        if len(parts) != 2:
+            return None
+        
+        code, exchange = parts
+        market = 'sz' if exchange.lower() == 'sz' else 'sh'
+        
+        url = f"http://qt.gtimg.cn/q={market}{code}"
+        resp = requests.get(url, timeout=5)
+        
+        if resp.status_code == 200:
+            data = resp.text.strip()
+            if '=' in data and '"' in data:
+                data_str = data.split('=')[1].strip('"')
+                p = data_str.split('~')
+                
+                if len(p) >= 32:
+                    current = float(p[3]) if p[3] else 0
+                    prev_close = float(p[4]) if p[4] else current
+                    open_price = float(p[5]) if p[5] else current
+                    high = float(p[6]) if p[6] else current
+                    low = float(p[7]) if p[7] else current
+                    volume = float(p[8]) if p[8] else 0
+                    amount = float(p[9]) if p[9] else 0
+                    
+                    change_pct = ((current - prev_close) / prev_close * 100) if prev_close > 0 else 0
+                    match_volume = int(float(p[31]) * 100) if len(p) > 31 and p[31] else int(volume)
+                    unmatched = int(float(p[32]) * 100) if len(p) > 32 and p[32] else 0
+                    bid_ask_ratio = (match_volume + unmatched) / match_volume if match_volume > 0 else 1
+                    
+                    return {
+                        'open_price': open_price,
+                        'current': current,
+                        'prev_close': prev_close,
+                        'high': high,
+                        'low': low,
+                        'change_pct': change_pct,
+                        'volume': int(volume * 100),
+                        'amount': amount * 10000,
+                        'match_volume': match_volume,
+                        'unmatched': unmatched,
+                        'bid_ask_ratio': bid_ask_ratio,
+                    }
+    except Exception as e:
+        logger.warning(f"获取集合竞价数据失败 {ts_code}: {e}")
+    
+    return None
+
+
 def get_overnight_market() -> dict:
     """
     获取隔夜市场数据
@@ -119,7 +174,7 @@ def get_overnight_market() -> dict:
 
 def get_holding_analysis() -> list:
     """
-    分析持仓股票的盘前状态
+    分析持仓股票的盘前状态（包含集合竞价）
     """
     from data.tushare_client import get_pe_pb_percentile
     from data.realtime_fetcher import fetch_realtime_price
@@ -138,16 +193,40 @@ def get_holding_analysis() -> list:
             price_data = fetch_realtime_price(code, use_cache=True)
             current_price = price_data.get('price', cost_price)
             
+            # 获取集合竞价数据（9:25 有真实数据）
+            auction_data = get_auction_data(code)
+            
             # 获取估值分位
             try:
                 pe_pb = get_pe_pb_percentile(code)
-                # Tushare 返回的是小数 (0.8952)，需要乘以 100 变成百分比
                 pe_percentile = pe_pb.get('pe_percentile_5y', 0.5) * 100
             except:
                 pe_percentile = 50
             
             # 计算与成本价的差距
             vs_cost = (current_price - cost_price) / cost_price * 100
+            
+            # 集合竞价分析
+            if auction_data:
+                auction_open = auction_data.get('open_price', current_price)
+                auction_change = auction_data.get('change_pct', 0)
+                auction_volume = auction_data.get('match_volume', 0)
+                
+                if auction_change > 2:
+                    auction_signal = '🔴 强势高开'
+                elif auction_change > 0.5:
+                    auction_signal = '🟢 小幅高开'
+                elif auction_change > -0.5:
+                    auction_signal = '⚪ 平开'
+                elif auction_change > -2:
+                    auction_signal = '🔵 小幅低开'
+                else:
+                    auction_signal = '🔴 大幅低开'
+                
+                auction_summary = f"{auction_open:.2f} ({auction_change:+.2f}%), 竞价量：{auction_volume:,}股"
+            else:
+                auction_signal = '⏳ 未开始'
+                auction_summary = '等待 9:15-9:25 集合竞价'
             
             # 判断预期开盘
             if vs_cost > 20:
@@ -173,6 +252,8 @@ def get_holding_analysis() -> list:
                 'current_price': current_price,
                 'pe_percentile': pe_percentile,
                 'vs_cost': vs_cost,
+                'auction_signal': auction_signal,
+                'auction_summary': auction_summary,
                 'expected_open': expected_open,
                 'key_level': f"支撑位：¥{support:.2f}, 压力位：¥{resistance:.2f}",
                 'action': '观望，等待盘中确认',
@@ -246,6 +327,7 @@ def generate_report() -> str:
 - **成本价：** ¥{h['cost_price']:.3f}
 - **最新价：** ¥{current_price:.2f} ({vs_cost:+.1f}%)
 - **PE 分位：** {pe_percentile:.0f}%
+- **集合竞价：** {h['auction_signal']} {h['auction_summary']}
 - **预期开盘：** {h['expected_open']}
 - **关键位置：** {h['key_level']}
 - **操作计划：** {h['action']}
@@ -255,23 +337,24 @@ def generate_report() -> str:
     report += f"""## 🎯 今日操作计划
 
 ### 总体策略
-基于隔夜市场表现，建议采取 **{market['sentiment']}** 策略：
+基于隔夜市场表现和集合竞价结果，建议采取 **{market['sentiment']}** 策略：
 
-1. **开盘阶段（9:15-9:30）：** 观察集合竞价，确认开盘价是否符合预期
-2. **盘中监控（9:30-15:00）：** 关注持仓股是否触发预警规则
-3. **关键位置：** 若跌破支撑位，准备执行补仓计划；若突破压力位，考虑减仓
+1. **集合竞价解读（9:25）：** 根据竞价信号调整今日操作
+2. **开盘阶段（9:30-10:00）：** 观察开盘后走势，确认方向
+3. **盘中监控（9:30-15:00）：** 关注持仓股是否触发预警规则
+4. **关键位置：** 若跌破支撑位，准备执行补仓计划；若突破压力位，考虑减仓
 
 ### 重点关注
 - 隔夜市场波动对 A 股的传导效应
 - 人民币汇率变动对外资流向的影响
-- 持仓股的盘中表现
+- 持仓股的集合竞价信号和盘中表现
 
 ---
 
 ## ⚠️ 风险提示
 
 1. 隔夜市场波动可能影响 A 股开盘
-2. 盘中需关注实时资金流向
+2. 集合竞价信号需结合盘中确认
 3. 严格执行投资宪法，不追涨杀跌
 
 ---
@@ -290,59 +373,65 @@ def push_to_dingtalk(content: str):
     import tempfile
     import os
     
+    # 转义反引号
+    escaped_content = content.replace('`', '\\`')
+    
     # 创建临时 JS 脚本
-    js_code = """
-import { sendProactive } from '/home/admin/.openclaw/extensions/dingtalk-connector/src/services/messaging.ts';
+    js_code = f"""
+import {{ sendProactive }} from '/home/admin/.openclaw/extensions/dingtalk-connector/src/services/messaging.ts';
 
-const config = {
+const config = {{
   clientId: "dinggmk7kpiddrrvi0l5",
   clientSecret: "9RR-37dNLUKRkzzS-1RN5CHsDSJnIKEtBCd3-O9MqB7SvYUduBwse8FhEtMnr2bN",
   gatewayToken: "7c945e183e33b18df341e2c3ad9ced59e0a7f156d7d20238"
-};
+}};
 
 const userId = "01023647151178899";
-const content = `""" + content.replace('`', '\\`') + """`;
+const content = `{escaped_content}`;
 
-async function push() {
-  try {
-    const result = await sendProactive(config, { userId }, content, {
+async function push() {{
+  try {{
+    const result = await sendProactive(config, {{ userId }}, content, {{
       msgType: "markdown",
       title: "AI 价值投资系统",
       useAICard: false
-    });
-    console.log("钉钉推送结果:", JSON.stringify(result));
-  } catch (err) {
-    console.error("钉钉推送失败:", err.message);
-  }
-}
+    }});
+    console.log('推送成功:', result);
+  }} catch (error) {{
+    console.error('推送失败:', error);
+    process.exit(1);
+  }}
+}}
 
 push();
 """
     
     try:
         # 写入临时文件
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.mjs', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ts', delete=False) as f:
             f.write(js_code)
             temp_file = f.name
         
         # 执行 Node.js 脚本
         result = subprocess.run(
             ['npx', 'tsx', temp_file],
-            cwd='/home/admin/.openclaw/extensions/dingtalk-connector',
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            cwd='/home/admin/.openclaw/extensions/dingtalk-connector',
+            env={**os.environ, 'NODE_NO_WARNINGS': '1'}
         )
         
-        print(f"钉钉推送：{result.stdout}", file=sys.stderr)
-        if result.stderr:
-            print(f"推送错误：{result.stderr}", file=sys.stderr)
+        if result.returncode == 0:
+            logger.info("📤 Dingtalk 推送成功")
+        else:
+            logger.error(f"📤 Dingtalk 推送失败：{result.stderr}")
         
         # 清理临时文件
         os.unlink(temp_file)
         
     except Exception as e:
-        print(f"钉钉推送异常：{e}", file=sys.stderr)
+        logger.error(f"📤 Dingtalk 推送异常：{e}")
 
 def main():
     """
