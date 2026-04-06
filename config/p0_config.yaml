@@ -1,0 +1,72 @@
+# AI 价值投资系统 v2.0 - P0 阶段配置
+
+# 推送优化配置
+push_optimization:
+  enabled: true
+  alert_only_mode: true
+  
+  # 预警条件
+  alert_conditions:
+    - type: "补仓位触发"
+      condition: "current_price <= buy_level_1 * 1.02"
+      level: "green"
+    - type: "减仓位触发"
+      condition: "current_price >= sell_level_1 * 0.98"
+      level: "orange"
+    - type: "ST 风险"
+      condition: "is_st"
+      level: "red"
+    - type: "质押风险"
+      condition: "pledge_ratio > 50"
+      level: "orange"
+    - type: "大股东减持"
+      condition: "shareholder_reduce > 5"
+      level: "orange"
+    - type: "流动性风险"
+      condition: "avg_volume < 10000000"
+      level: "orange"
+    - type: "估值过高"
+      condition: "pe_percentile > 95"
+      level: "red"
+
+# 记忆系统配置
+memory_system:
+  enabled: true
+  memory_dir: "memory/"
+  retention_days: 30
+  auto_purge: true
+  
+  # 记忆类型
+  memory_types:
+    - "analysis_history"
+    - "decision_log"
+    - "promise_tracking"
+
+# 回滚配置
+rollback:
+  enabled: true
+  auto_rollback_on_error: true
+
+# P1 阶段配置
+# 报告摘要化
+report_summary:
+  enabled: true
+  summary_mode: true
+  attach_full_report: true
+  max_lines: 5
+
+# LLM 深度分析
+llm_enhancement:
+  enabled: true  # 开启测试
+  api_key: "sk-sp-86c12d2ccf8f4a949a9b76a3cb106cde"
+  base_url: "https://coding.dashscope.aliyuncs.com/v1"
+  model: "qwen3.5-plus"
+  analysis_depth: medium
+  cost_limit_per_day: 10
+  
+  # 功能开关
+  features:
+    promise_semantic_analysis: true
+    mda_analysis: true
+    fraud_detection_enhanced: true
+    industry_analysis: true

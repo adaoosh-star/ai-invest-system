@@ -111,15 +111,64 @@ def select_stocks():
     return result
 
 def monitor_portfolio():
-    """持仓监控"""
+    """持仓监控（v1.0 兼容）"""
     print(f"\n{'='*60}")
     print(f"AI 价值投资系统 v1.0 - 持仓监控")
     print(f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}\n")
     
-    # TODO: 实现持仓监控
-    print("⚠️ 持仓监控功能开发中...")
-    return None
+    from monitor.holding_monitor import generate_report, format_report
+    
+    report = generate_report()
+    print(format_report(report, verbose=True))
+    return report
+
+def monitor_portfolio_v2():
+    """持仓监控 v2.0（推送优化 + 记忆系统）"""
+    print(f"\n{'='*60}")
+    print(f"AI 价值投资系统 v2.0 - 持仓监控（推送优化）")
+    print(f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{'='*60}\n")
+    
+    from monitor.holding_monitor_v2 import run_monitoring_v2, format_push_message
+    
+    result = run_monitoring_v2(verbose=True)
+    
+    # 输出推送决策
+    print(f"推送决策：{'推送' if result['push_decision']['should_push'] else '不推送'}")
+    print(f"预警数量：{result['push_decision']['alert_count']}")
+    print(f"原因：{result['push_decision']['reason']}")
+    print()
+    
+    if result['push_decision']['should_push']:
+        # 有预警，输出推送消息
+        message = format_push_message(result['report'])
+        print(message)
+    else:
+        # 无预警，输出摘要
+        summary = result['report']['summary']
+        print(f"✅ 持仓正常，无预警")
+        print(f"总市值：¥{summary['total_market_value']:,.0f} ({summary['total_pnl_ratio']:+.2f}%)")
+    
+    # 保存记忆
+    try:
+        from utils.session_memory import get_memory
+        memory = get_memory()
+        memory.save_analysis(
+            ts_code='portfolio',
+            stock_name='持仓组合',
+            conclusion={
+                'status': 'normal' if not result['push_decision']['should_push'] else 'alert',
+                'alert_count': result['push_decision']['alert_count'],
+            },
+            metadata=result['push_decision']
+        )
+        print(f"\n🧠 记忆已保存")
+    except Exception as e:
+        print(f"\n⚠️ 记忆保存失败：{e}")
+    
+    print(f"\n{'='*60}\n")
+    return result
 
 def weekly_review():
     """周复盘"""
@@ -134,21 +183,23 @@ def weekly_review():
 
 def main():
     parser = argparse.ArgumentParser(
-        description='AI 价值投资系统 v1.0 - 统一入口',
+        description='AI 价值投资系统 v1.0/v2.0 - 统一入口',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
   python run.py analyze 002969.SZ          # 分析嘉美包装
   python run.py analyze 002270.SZ --quick  # 快速分析（仅 20 项检查）
   python run.py select                     # 全市场选股
-  python run.py monitor                    # 持仓监控
+  python run.py monitor                    # 持仓监控（v1.0）
+  python run.py monitor-v2                 # 持仓监控（v2.0 推送优化）
   python run.py review                     # 周复盘
+  python run.py memory-stats               # 记忆系统统计
         """
     )
     
     parser.add_argument(
         'command',
-        choices=['analyze', 'select', 'monitor', 'review'],
+        choices=['analyze', 'select', 'monitor', 'monitor-v2', 'review', 'memory-stats', 'summary-test', 'llm-test', 'decision-test', 'annual-test'],
         help='命令类型'
     )
     
@@ -180,8 +231,131 @@ def main():
     elif args.command == 'monitor':
         monitor_portfolio()
     
+    elif args.command == 'monitor-v2':
+        monitor_portfolio_v2()
+    
     elif args.command == 'review':
         weekly_review()
+    
+    elif args.command == 'memory-stats':
+        from utils.session_memory import get_memory
+        memory = get_memory()
+        stats = memory.get_memory_stats()
+        print(f"\n{'='*60}")
+        print(f"投资系统记忆统计")
+        print(f"{'='*60}")
+        print(f"状态：{'已启用' if stats.get('enabled') else '未启用'}")
+        if stats.get('enabled'):
+            print(f"目录：{stats['memory_dir']}")
+            print(f"保留期：{stats['retention_days']} 天")
+            print(f"总记录数：{stats['total_entries']}")
+            print(f"分类统计:")
+            for mem_type, data in stats['files'].items():
+                print(f"  - {mem_type}: {data['entries']} 条 ({data['files']} 个文件)")
+        print(f"{'='*60}\n")
+    
+    elif args.command == 'summary-test':
+        print(f"\n{'='*60}")
+        print(f"报告摘要生成器 - 测试")
+        print(f"{'='*60}\n")
+        from report.summary_generator import get_summarizer
+        summarizer = get_summarizer()
+        
+        # 测试摘要生成
+        test_report = {
+            'summary': {'total_market_value': 314160, 'total_pnl_ratio': -0.0012},
+            'portfolio': [
+                {'name': '华明装备', 'market_value': 164400},
+                {'name': '电网设备 ETF', 'market_value': 149760},
+            ],
+            'alerts': [{'level': '🟢 机会', 'stock': '华明装备', 'message': '现价 26.37 接近补仓位 26.0'}]
+        }
+        summary = summarizer.summarize_portfolio(test_report)
+        print(f"持仓监控摘要:\n{summary}\n")
+        print(f"{'='*60}\n")
+    
+    elif args.command == 'llm-test':
+        print(f"\n{'='*60}")
+        print(f"LLM 深度分析模块 - 测试")
+        print(f"{'='*60}\n")
+        from analysis.llm_enhanced import get_llm_analyzer
+        analyzer = get_llm_analyzer()
+        
+        print(f"LLM 状态：{'已启用' if analyzer.enabled else '未启用'}")
+        print(f"成本限制：¥{analyzer.cost_limit}/天")
+        print(f"剩余额度：¥{analyzer.get_cost_status()['remaining']:.2f}")
+        print()
+        
+        # 测试造假风险识别（规则式）
+        financial_data = {
+            'receivables_to_revenue': 0.3,
+            'cash_flow_to_net_profit': 0.8,
+        }
+        result = analyzer.detect_fraud_risk(financial_data)
+        print(f"造假风险识别（规则式）:")
+        for risk in result.get('rule_based_risks', []):
+            print(f"  - {risk['type']}: {risk['value']} ({risk['severity']})")
+        if not result.get('rule_based_risks'):
+            print("  ✅ 无风险信号")
+        print()
+        print(f"{'='*60}\n")
+    
+    elif args.command == 'annual-test':
+        print(f"\n{'='*60}")
+        print(f"年报深度解读模块 - 测试")
+        print(f"{'='*60}\n")
+        from analysis.annual_report_analyzer import get_annual_analyzer
+        analyzer = get_annual_analyzer()
+        
+        print(f"年报分析器状态：已启用")
+        print()
+        
+        # 测试 MD&A 分析
+        print("测试 1: MD&A 分析")
+        sample_mda = """
+        2025 年，公司实现营业收入 50 亿元，同比增长 25%。
+        净利润 8 亿元，同比增长 30%。
+        公司继续加大研发投入，研发费用占营收比例达到 8%。
+        主要产品市场份额进一步提升，竞争优势巩固。
+        
+        面临挑战：原材料价格波动风险、行业竞争加剧、宏观经济不确定性
+        
+        展望未来，公司将继续坚持创新驱动发展战略，深耕主业。
+        """
+        result = analyzer.analyze_mda(sample_mda, 2025)
+        print(f"  字数：{result['word_count']}")
+        print(f"  摘要：{result['summary']}")
+        print(f"  情感倾向：{result['rule_based']['sentiment']}")
+        print()
+        
+        # 测试趋势分析
+        print("测试 2: 跨年度趋势分析")
+        historical_data = [
+            {'revenue': 30, 'net_profit': 5, 'roe': 0.15, 'gross_margin': 0.40},
+            {'revenue': 38, 'net_profit': 6.5, 'roe': 0.18, 'gross_margin': 0.42},
+            {'revenue': 50, 'net_profit': 8, 'roe': 0.22, 'gross_margin': 0.45},
+        ]
+        result = analyzer.analyze_trend(historical_data)
+        print(f"  分析年数：{result['years']}")
+        print(f"  整体趋势：{result['overall_trend']}")
+        print()
+        
+        # 测试完整报告
+        print("测试 3: 完整报告生成")
+        report = analyzer.generate_full_report(
+            ts_code='002270.SZ',
+            stock_name='华明装备',
+            mda_text=sample_mda,
+            financial_notes={},
+            historical_data=historical_data
+        )
+        print(f"  报告长度：{len(report)} 字符")
+        print(f"  报告章节：{report.count('## ')} 个")
+        print()
+        
+        print(f"{'='*60}")
+        print(f"✅ 年报深度解读模块测试完成")
+        print(f"{'='*60}\n")
 
 if __name__ == '__main__':
     main()

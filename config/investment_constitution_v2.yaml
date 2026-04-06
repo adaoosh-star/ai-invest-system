@@ -1,0 +1,133 @@
+# 投资宪法 2.0 - 决策规则配置
+# 版本：v2.0
+# 创建时间：2026-04-07
+# 状态：P2 阶段实施
+
+# 决策引擎配置
+enabled: true
+
+# ==================== 买入决策配置 ====================
+buy:
+  # 前置条件
+  checklist_pass_rate_min: 0.75  # 20 项检查通过率≥75%
+  hard_bottom_required: true  # 必须通过硬底线
+  risk_check_required: true  # 必须通过风险检查
+  avg_volume_min: 50000000  # 日均成交≥5000 万
+  
+  # 估值要求
+  pe_percentile_max: 0.80  # PE 分位≤80%
+  pb_percentile_max: 0.80  # PB 分位≤80%
+  peg_max: 2.0  # PEG≤2
+  
+  # 安全边际
+  safety_margin_discount: 0.80  # 8 折买入
+
+# ==================== 卖出决策配置 ====================
+sell:
+  # 高估触发
+  pe_percentile_sell: 0.95  # PE 分位>95%
+  peg_sell: 2.0  # PEG>2
+  
+  # 基本面恶化
+  roe_decline_years: 2  # ROE 连续 2 年下降
+  revenue_decline_years: 2  # 营收连续 2 年负增长
+  
+  # 风险事件
+  st_risk: true  # 被 ST 立即卖出
+  pledge_ratio_sell: 0.50  # 质押率>50%
+  shareholder_reduction_sell: 0.05  # 大股东减持>5%
+  
+  # 仓位管理
+  position_single_max: 0.30  # 单一持仓>30%
+  position_industry_max: 0.40  # 单一行业>40%
+
+# ==================== 补仓决策配置 ====================
+buy_more:
+  # 价格条件
+  price_threshold: 0.02  # 现价≤补仓位×1.02
+  
+  # 基本面条件
+  no_deterioration: true  # 基本面无恶化
+  no_red_alert: true  # 无红色预警
+  
+  # 仓位条件
+  below_target: true  # 当前仓位<目标仓位
+  available_cash: true  # 有可用现金
+
+# ==================== 减仓决策配置 ====================
+reduce_position:
+  # 价格条件
+  price_threshold: 0.02  # 现价≥减仓位×0.98
+  
+  # 估值条件
+  pe_percentile_high: 0.80  # PE 分位>80%
+
+# ==================== 评分权重配置 ====================
+scoring:
+  # 买入评分权重
+  weights:
+    checklist_pass_rate: 0.30  # 20 项检查通过率 30%
+    roe_score: 0.25  # ROE 评分 25%
+    cash_flow_score: 0.20  # 现金流评分 20%
+    valuation_score: 0.15  # 估值评分 15%
+    growth_score: 0.10  # 增长评分 10%
+  
+  # 决策阈值
+  thresholds:
+    strong_buy: 0.85  # ≥85 分：强烈推荐
+    buy: 0.70  # ≥70 分：推荐买入
+    hold: 0.50  # ≥50 分：观望
+    avoid: 0.50  # <50 分：避免
+
+# ==================== 仓位管理配置 ====================
+position_management:
+  # 单只股票仓位
+  single_min: 0.10  # 最低 10%
+  single_target: 0.20  # 目标 20%
+  single_max: 0.30  # 最高 30%
+  
+  # 单一行业仓位
+  industry_max: 0.40  # 最高 40%
+  
+  # 总仓位
+  total_min: 0.60  # 最低 60%
+  total_target: 0.80  # 目标 80%
+  total_max: 1.00  # 最高 100%
+  
+  # 现金储备
+  cash_reserve_min: 0.10  # 最低 10% 现金
+
+# ==================== 预警配置 ====================
+alert:
+  # 红色预警（🔴）
+  red:
+    - is_st
+    - pledge_ratio > 0.50
+    - pe_percentile > 0.95
+    - cash_flow_negative_consecutive_2q
+  
+  # 橙色预警（🟠）
+  orange:
+    - shareholder_reduction > 0.05
+    - liquidity_risk
+    - roe_decline > 0.05
+    - debt_ratio_rise > 0.20
+  
+  # 绿色机会（🟢）
+  green:
+    - price_near_buy_position
+    - pe_percentile < 0.20
+
+# ==================== 回测配置 ====================
+backtest:
+  enabled: false  # 待实施
+  periods:
+    - "2020-2023"
+    - "2023-2024"
+    - "2024-2025"
+  metrics:
+    - total_return
+    - annual_return
+    - max_drawdown
+    - sharpe_ratio
+    - win_rate
