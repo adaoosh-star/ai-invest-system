@@ -76,7 +76,7 @@ class AnnualReview:
         report = []
         
         # 报告头部
-        report.append(f"# 🦀 AI 价值投资系统 v1.0 - 年度回顾报告")
+        report.append(f"# 🦀 AI 价值投资系统 v2.0 - 年度回顾报告")
         report.append(f"")
         report.append(f"**回顾年度：** {self.review_year}年")
         report.append(f"**生成时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
@@ -220,7 +220,7 @@ class AnnualReview:
         report.append(f"")
         report.append(f"**免责声明：** 本报告仅供参考，不构成投资建议。投资需谨慎，决策需自主。")
         report.append(f"")
-        report.append(f"*AI 价值投资系统 v1.0 | 让投资更简单*")
+        report.append(f"*AI 价值投资系统 v2.0 | 让投资更简单*")
         
         return '\n'.join(report)
     

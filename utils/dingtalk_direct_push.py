@@ -23,7 +23,7 @@ USER_ID = "01023647151178899"
 
 def get_access_token():
     """获取钉钉 access token"""
-    url = "https://api.dingtalk.com/v1.0/oauth2/accessToken"
+    url = "https://api.dingtalk.com/v2.0/oauth2/accessToken"
     payload = {
         "appKey": CLIENT_ID,
         "appSecret": CLIENT_SECRET
@@ -45,7 +45,7 @@ def push_markdown(content: str, title: str = "AI 价值投资系统") -> dict:
         
         if access_token:
             # 发送单聊消息
-            url = "https://api.dingtalk.com/v1.0/robot/message/send"
+            url = "https://api.dingtalk.com/v2.0/robot/message/send"
             headers = {
                 "x-acs-dingtalk-access-token": access_token,
                 "Content-Type": "application/json"

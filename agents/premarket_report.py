@@ -359,7 +359,7 @@ def generate_report() -> str:
 
 ---
 
-*AI 价值投资系统 v1.0 | 投资宪法原则*
+*AI 价值投资系统 v2.0 | 投资宪法原则*
 """
     
     return report

@@ -53,7 +53,7 @@ def should_push(alerts: list, config: dict) -> bool:
     alert_only_mode = push_config.get('enabled', True) and push_config.get('alert_only_mode', True)
     
     if not alert_only_mode:
-        # 关闭优化，始终推送（v1.0 行为）
+        # 关闭优化，始终推送（v2.0 行为）
         return True
     
     # 检查是否有预警
@@ -92,7 +92,7 @@ def run_monitoring_v2(verbose: bool = False) -> dict:
     """
     logger.info("开始 v2.0 持仓监控（推送优化）")
     
-    # 生成报告（复用 v1.0 逻辑）
+    # 生成报告（复用 v2.0 逻辑）
     report = generate_report()
     
     # 判断是否推送

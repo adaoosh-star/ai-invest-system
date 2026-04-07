@@ -189,7 +189,7 @@ def generate_selection_report(df: pd.DataFrame, total: int) -> str:
     report.append("")
     report.append("**免责声明**: 本报告仅供参考，不构成投资建议。")
     report.append("")
-    report.append("*AI 价值投资系统 v1.0*")
+    report.append("*AI 价值投资系统 v2.0*")
     
     return '\n'.join(report)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AI 价值投资系统 v1.0 - 统一入口
+AI 价值投资系统 v2.0 - 统一入口
 
 用法：
     python run.py analyze 002969.SZ    # 分析单只股票
@@ -91,7 +91,7 @@ def analyze_stock(ts_code: str, full: bool = True):
 def select_stocks():
     """全市场自动化选股"""
     print(f"\n{'='*60}")
-    print(f"AI 价值投资系统 v1.0 - 自动化选股")
+    print(f"AI 价值投资系统 v2.0 - 自动化选股")
     print(f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}\n")
     
@@ -111,9 +111,9 @@ def select_stocks():
     return result
 
 def monitor_portfolio():
-    """持仓监控（v1.0 兼容）"""
+    """持仓监控（v2.0 兼容）"""
     print(f"\n{'='*60}")
-    print(f"AI 价值投资系统 v1.0 - 持仓监控")
+    print(f"AI 价值投资系统 v2.0 - 持仓监控")
     print(f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}\n")
     
@@ -173,7 +173,7 @@ def monitor_portfolio_v2():
 def weekly_review():
     """周复盘"""
     print(f"\n{'='*60}")
-    print(f"AI 价值投资系统 v1.0 - 周复盘")
+    print(f"AI 价值投资系统 v2.0 - 周复盘")
     print(f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}\n")
     
@@ -183,14 +183,14 @@ def weekly_review():
 
 def main():
     parser = argparse.ArgumentParser(
-        description='AI 价值投资系统 v1.0/v2.0 - 统一入口',
+        description='AI 价值投资系统 v2.0/v2.0 - 统一入口',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
   python run.py analyze 002969.SZ          # 分析嘉美包装
   python run.py analyze 002270.SZ --quick  # 快速分析（仅 20 项检查）
   python run.py select                     # 全市场选股
-  python run.py monitor                    # 持仓监控（v1.0）
+  python run.py monitor                    # 持仓监控（v2.0）
   python run.py monitor-v2                 # 持仓监控（v2.0 推送优化）
   python run.py review                     # 周复盘
   python run.py memory-stats               # 记忆系统统计

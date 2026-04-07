@@ -298,7 +298,7 @@ def format_report(report: dict, verbose: bool = False) -> str:
     
     # 有预警时，输出详细报告
     lines = []
-    lines.append("# 🦀 AI 价值投资系统 v1.0 - 持仓监控报告")
+    lines.append("# 🦀 AI 价值投资系统 v2.0 - 持仓监控报告")
     lines.append("")
     lines.append(f"**监控时间：** {report['timestamp'][:19]}")
     lines.append("")
@@ -364,7 +364,7 @@ def format_report(report: dict, verbose: bool = False) -> str:
     
     # 下一步
     lines.append("---")
-    lines.append("*AI 价值投资系统 v1.0 自动生成*")
+    lines.append("*AI 价值投资系统 v2.0 自动生成*")
     
     return "\n".join(lines)
 

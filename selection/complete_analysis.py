@@ -106,7 +106,7 @@ def generate_final_conclusion(checklist_result: dict, nlp_result: dict) -> dict:
 def generate_full_report(ts_code: str, checklist_result: dict, nlp_result: dict, conclusion: dict) -> str:
     """生成完整报告"""
     report = []
-    report.append(f"# 🦀 AI 价值投资系统 v1.0 - {ts_code} 完整分析报告")
+    report.append(f"# 🦀 AI 价值投资系统 v2.0 - {ts_code} 完整分析报告")
     report.append(f"**报告时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     report.append("")
     report.append("## 📊 核心结论")

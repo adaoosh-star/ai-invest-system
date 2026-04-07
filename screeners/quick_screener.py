@@ -152,7 +152,7 @@ report.append("---")
 report.append("")
 report.append("**免责声明**: 本报告仅供参考，不构成投资建议。")
 report.append("")
-report.append("*AI 价值投资系统 v1.0*")
+report.append("*AI 价值投资系统 v2.0*")
 
 md_file = output_dir / f'quick_screen_{datetime.now().strftime("%Y%m%d")}.md'
 with open(md_file, 'w', encoding='utf-8') as f:

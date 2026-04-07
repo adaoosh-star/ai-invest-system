@@ -246,7 +246,7 @@ class IntegrityScore:
         
         # 生成报告
         report = []
-        report.append(f"# 🦀 AI 价值投资系统 v1.0 - 管理层诚信评分报告")
+        report.append(f"# 🦀 AI 价值投资系统 v2.0 - 管理层诚信评分报告")
         report.append(f"")
         report.append(f"**股票代码：** {self.ts_code}")
         report.append(f"**股票名称：** {self.stock_name}")
@@ -315,7 +315,7 @@ class IntegrityScore:
         report.append(f"**数据来源：** Tushare Pro、巨潮资讯网公开数据")
         report.append(f"**免责声明：** 本报告仅供参考，不构成投资建议。投资需谨慎，决策需自主。")
         report.append(f"")
-        report.append(f"*AI 价值投资系统 v1.0 | 让投资更简单*")
+        report.append(f"*AI 价值投资系统 v2.0 | 让投资更简单*")
         
         return '\n'.join(report)
     

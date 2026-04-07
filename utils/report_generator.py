@@ -37,7 +37,7 @@ def generate_checklist_report(ts_code: str, output_dir: str = None) -> str:
     
     # 生成报告
     report = []
-    report.append(f"# 🦀 AI 价值投资系统 v1.0 - 20 项检查报告")
+    report.append(f"# 🦀 AI 价值投资系统 v2.0 - 20 项检查报告")
     report.append(f"")
     report.append(f"**股票代码：** {ts_code}")
     report.append(f"**股票名称：** {stock_name}")
@@ -63,7 +63,7 @@ def generate_checklist_report(ts_code: str, output_dir: str = None) -> str:
         report.append(f"| {i} | {item['name']} | {item['value']} | {item['threshold']} | {status} |")
     
     report.append(f"")
-    report.append(f"*AI 价值投资系统 v1.0*")
+    report.append(f"*AI 价值投资系统 v2.0*")
     
     # 保存报告
     ts_code_part = ts_code.replace('.', '_')
@@ -153,7 +153,7 @@ def generate_full_report(ts_code: str, output_dir: str = None) -> str:
     
     # 生成报告
     report = []
-    report.append(f"# 🦀 AI 价值投资系统 v1.0 - 完整投资分析报告")
+    report.append(f"# 🦀 AI 价值投资系统 v2.0 - 完整投资分析报告")
     report.append(f"")
     report.append(f"**股票代码：** {ts_code}")
     report.append(f"**股票名称：** {stock_name}")
@@ -246,7 +246,7 @@ def generate_full_report(ts_code: str, output_dir: str = None) -> str:
     report.append(f"")
     report.append(f"**免责声明：** 本报告仅供参考，不构成投资建议。投资需谨慎，决策需自主。")
     report.append(f"")
-    report.append(f"*AI 价值投资系统 v1.0 | 让投资更简单*")
+    report.append(f"*AI 价值投资系统 v2.0 | 让投资更简单*")
     
     # 保存报告
     ts_code_part = ts_code.replace('.', '_')

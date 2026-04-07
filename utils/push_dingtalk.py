@@ -16,7 +16,7 @@ def push(content: str, title: str = "AI 价值投资系统") -> dict:
     """推送 Markdown 消息到钉钉"""
     try:
         # 1. 获取 access token
-        token_url = "https://api.dingtalk.com/v1.0/oauth2/accessToken"
+        token_url = "https://api.dingtalk.com/v2.0/oauth2/accessToken"
         token_resp = requests.post(token_url, json={
             "appKey": CLIENT_ID,
             "appSecret": CLIENT_SECRET
@@ -32,7 +32,7 @@ def push(content: str, title: str = "AI 价值投资系统") -> dict:
         # 这里直接使用已知的 userid
         
         # 3. 发送消息
-        msg_url = "https://api.dingtalk.com/v1.0/robot/message/send"
+        msg_url = "https://api.dingtalk.com/v2.0/robot/message/send"
         headers = {
             "x-acs-dingtalk-access-token": access_token,
             "Content-Type": "application/json"

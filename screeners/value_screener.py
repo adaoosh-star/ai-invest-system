@@ -291,7 +291,7 @@ def generate_report(qualified_stocks: pd.DataFrame):
     report.append("")
     report.append("**免责声明**: 本报告仅供参考，不构成投资建议。投资需谨慎，决策需自主。")
     report.append("")
-    report.append("*AI 价值投资系统 v1.0 | 让投资更简单*")
+    report.append("*AI 价值投资系统 v2.0 | 让投资更简单*")
     
     return '\n'.join(report)
 
